@@ -12,14 +12,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
-//import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.tresorsdeparis.ui.theme.TresorsDeParisTheme
 
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
 
     override fun onCreate(savedInstanceState: Bundle?) {
-//        installSplashScreen()
+        installSplashScreen()
         super.onCreate(savedInstanceState)
 
         setContent {
@@ -35,9 +35,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-@Composable
-fun MainContent() {
-    val url = "https://tresors-de-paris.com/"
+    @Composable
+    fun MainContent() {
+        val url = "https://tresors-de-paris.com/"
 
         AndroidView(factory = { context ->
             WebView(context).apply {
