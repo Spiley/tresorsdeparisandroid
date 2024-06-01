@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.tresorsdeparis"
+    namespace = "com.tresorsdeparis"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.tresorsdeparis"
+        applicationId = "com.tresorsdeparis"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
