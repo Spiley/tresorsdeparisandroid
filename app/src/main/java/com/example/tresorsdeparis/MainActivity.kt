@@ -1,7 +1,11 @@
 package com.example.tresorsdeparis
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -46,7 +50,23 @@ class MainActivity : ComponentActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                webViewClient = WebViewClient()
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                        val url = request?.url.toString()
+                        return if (url.startsWith("fb://")) {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                context.startActivity(intent)
+                                true
+                            } catch (e: ActivityNotFoundException) {
+                                // Facebook app is not installed
+                                true // Prevent WebView from loading the URL
+                            }
+                        } else {
+                            false // Let WebView handle the URL
+                        }
+                    }
+                }
                 settings.javaScriptEnabled = true
                 settings.apply {
                     loadWithOverviewMode = true
