@@ -1,0 +1,62 @@
+name: iOS TestFlight
+
+# Run by hand from the Actions tab. Needs these repository secrets:
+#   APPLE_TEAM_ID   Team ID from developer.apple.com > Membership
+#   ASC_KEY_ID      App Store Connect API key ID (role: Admin)
+#   ASC_ISSUER_ID   App Store Connect API issuer ID
+#   ASC_KEY_P8      Contents of the downloaded AuthKey_XXXX.p8 file
+on:
+  workflow_dispatch:
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+    steps:
+      - uses: actions/checkout@v4
+
+      # App Store uploads must be built with a recent SDK, so use the newest Xcode on the runner
+      - name: Select latest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
+
+      - name: Archive
+        run: |
+          xcodebuild -project ios/TresorsDeParis.xcodeproj -scheme TresorsDeParis \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/TresorsDeParis.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            archive
+
+      - name: Sign and upload to TestFlight
+        run: |
+          cp ios/ExportOptions.plist build/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" build/ExportOptions.plist
+          xcodebuild -exportArchive \
+            -archivePath build/TresorsDeParis.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Remove API key
+        if: always()
+        run: rm -f "$ASC_KEY_PATH"
