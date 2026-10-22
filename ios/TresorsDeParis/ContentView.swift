@@ -1,33 +1,31 @@
 import SwiftUI
 
 struct ContentView: View {
-    private let url = URL(string: "https://tresors-de-paris.com/")!
-    @State private var isLoading = true
+    // `-startTab N` as a launch argument opens another tab (used for simulator screenshots)
+    @State private var selectedTab = UserDefaults.standard.integer(forKey: "startTab")
 
     var body: some View {
-        ZStack {
-            WebView(url: url, isLoading: $isLoading)
-                .ignoresSafeArea(edges: .bottom)
-
-            if isLoading {
-                ZStack {
-                    Color(uiColor: .systemBackground)
-                        .opacity(0.5)
-                        .ignoresSafeArea()
-                    VStack {
-                        ProgressView()
-                            .controlSize(.large)
-                            .padding(.bottom, 16)
-                        Text("Loading TdP ...")
-                        Text("Your Insider's Guide to Paris")
-                    }
-                }
-            }
+        TabView(selection: $selectedTab) {
+            HomeView()
+                .tabItem { Label("Home", systemImage: "house") }
+                .tag(0)
+            CategoriesView()
+                .tabItem { Label("Categories", systemImage: "square.grid.2x2") }
+                .tag(1)
+            SearchView()
+                .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                .tag(2)
+            FavoritesView()
+                .tabItem { Label("Favorites", systemImage: "heart") }
+                .tag(3)
+            WebsiteView()
+                .tabItem { Label("Website", systemImage: "safari") }
+                .tag(4)
         }
-        .background(Color(uiColor: .systemBackground))
     }
 }
 
 #Preview {
     ContentView()
+        .environment(FavoritesStore())
 }

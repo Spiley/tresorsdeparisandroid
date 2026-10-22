@@ -9,15 +9,26 @@ on:
 
 jobs:
   simulator:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select latest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
       - name: Build for simulator
         run: |
+          set -o pipefail
           xcodebuild -project ios/TresorsDeParis.xcodeproj -scheme TresorsDeParis \
             -sdk iphonesimulator -configuration Debug \
-            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log || {
+            # Surface compiler errors as annotations on the run page
+            grep -E "error:" build.log | sort -u | head -30 | sed 's/^/::error::/'
+            exit 1
+          }
 
       - name: Boot simulator, install and launch
         run: |
@@ -31,13 +42,14 @@ jobs:
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/TresorsDeParis.app
-          xcrun simctl launch "$DEVICE" com.tresorsdeparis
-          sleep 3
-          xcrun simctl io "$DEVICE" screenshot launch.png
-          sleep 20
-          xcrun simctl io "$DEVICE" screenshot loaded.png
-          # Fail if the app crashed after launch
-          xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
+          # Open each tab in turn and screenshot it; fail if the app crashed
+          for TAB in 0 1 2 3 4; do
+            xcrun simctl terminate "$DEVICE" com.tresorsdeparis || true
+            xcrun simctl launch "$DEVICE" com.tresorsdeparis -startTab $TAB
+            sleep 12
+            xcrun simctl io "$DEVICE" screenshot "tab-$TAB.png"
+            xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
+          done
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,12 +1,15 @@
 import SwiftUI
 import WebKit
 
+/// Shows the full website. Reports loading/failure and reloads whenever `reloadToken` changes.
 struct WebView: UIViewRepresentable {
     let url: URL
     @Binding var isLoading: Bool
+    @Binding var failed: Bool
+    var reloadToken = 0
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(isLoading: $isLoading)
+        Coordinator(isLoading: $isLoading, failed: $failed)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -20,18 +23,41 @@ struct WebView: UIViewRepresentable {
         webView.allowsBackForwardNavigationGestures = true
         webView.isOpaque = false
         webView.backgroundColor = .systemBackground
+
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(context.coordinator, action: #selector(Coordinator.refresh), for: .valueChanged)
+        webView.scrollView.refreshControl = refreshControl
+
+        context.coordinator.webView = webView
+        context.coordinator.reloadToken = reloadToken
         webView.load(URLRequest(url: url))
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard context.coordinator.reloadToken != reloadToken else { return }
+        context.coordinator.reloadToken = reloadToken
+        if webView.url == nil {
+            webView.load(URLRequest(url: url))
+        } else {
+            webView.reload()
+        }
+    }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         private static let webSchemes: Set<String> = ["http", "https", "about", "data", "blob"]
         @Binding var isLoading: Bool
+        @Binding var failed: Bool
+        weak var webView: WKWebView?
+        var reloadToken = 0
 
-        init(isLoading: Binding<Bool>) {
+        init(isLoading: Binding<Bool>, failed: Binding<Bool>) {
             _isLoading = isLoading
+            _failed = failed
+        }
+
+        @objc func refresh() {
+            webView?.reload()
         }
 
         func webView(
@@ -57,14 +83,24 @@ struct WebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isLoading = false
+            failed = false
+            webView.scrollView.refreshControl?.endRefreshing()
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            isLoading = false
+            handle(error, in: webView)
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            handle(error, in: webView)
+        }
+
+        private func handle(_ error: Error, in webView: WKWebView) {
+            webView.scrollView.refreshControl?.endRefreshing()
+            // A cancelled load is replaced by a newer one, not a failure
+            guard (error as NSError).code != NSURLErrorCancelled else { return }
             isLoading = false
+            failed = true
         }
 
         // Open target="_blank" links in the same web view
