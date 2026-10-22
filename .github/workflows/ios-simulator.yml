@@ -1,0 +1,46 @@
+name: iOS simulator
+
+on:
+  push:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-simulator.yml"
+  workflow_dispatch:
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for simulator
+        run: |
+          xcodebuild -project ios/TresorsDeParis.xcodeproj -scheme TresorsDeParis \
+            -sdk iphonesimulator -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+
+      - name: Boot simulator, install and launch
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in devices if ".iOS-" in r), key=lambda r: [int(p) for p in r.split(".iOS-")[1].split("-")])
+          print(next(d["udid"] for d in devices[ios[-1]] if d["name"].startswith("iPhone")))
+          ')
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/TresorsDeParis.app
+          xcrun simctl launch "$DEVICE" com.tresorsdeparis
+          sleep 3
+          xcrun simctl io "$DEVICE" screenshot launch.png
+          sleep 20
+          xcrun simctl io "$DEVICE" screenshot loaded.png
+          # Fail if the app crashed after launch
+          xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-screenshots
+          path: "*.png"
