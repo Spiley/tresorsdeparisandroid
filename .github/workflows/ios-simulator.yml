@@ -36,11 +36,16 @@ jobs:
           import json, sys
           devices = json.load(sys.stdin)["devices"]
           ios = sorted((r for r in devices if ".iOS-" in r), key=lambda r: [int(p) for p in r.split(".iOS-")[1].split("-")])
-          print(next(d["udid"] for d in devices[ios[-1]] if d["name"].startswith("iPhone")))
+          iphones = [d for d in devices[ios[-1]] if d["name"].startswith("iPhone")]
+          # A Pro Max has the 6.9" screen App Store Connect asks screenshots for
+          print(next((d["udid"] for d in iphones if "Pro Max" in d["name"]), iphones[0]["udid"]))
           ')
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
+          # Clean status bar for App Store screenshots
+          xcrun simctl status_bar "$DEVICE" override --time 9:41 --dataNetwork wifi --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
           xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/TresorsDeParis.app
           # Open each tab in turn and screenshot it; fail if the app crashed
           for TAB in 0 1 2 3 4; do
