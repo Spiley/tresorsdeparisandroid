@@ -80,7 +80,23 @@ struct WebView: UIViewRepresentable {
                 return
             }
 
+            // Only the website itself opens in the app; other sites open in Safari.
+            // Embeds and ads load in sub-frames, so they are left alone.
+            if navigationAction.targetFrame?.isMainFrame ?? true,
+               ["http", "https"].contains(scheme),
+               !Self.isOwnSite(url) {
+                UIApplication.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+
             decisionHandler(.allow)
+        }
+
+        private static func isOwnSite(_ url: URL) -> Bool {
+            guard let host = url.host?.lowercased(),
+                  let siteHost = WordPressAPI.site.host?.lowercased() else { return false }
+            return host == siteHost || host.hasSuffix("." + siteHost)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
