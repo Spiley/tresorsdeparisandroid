@@ -133,6 +133,24 @@ struct ParisMapView: View {
 
     private let map = ParisMapData.shared
 
+    /// Starts zoomed in on central Paris so the map fills the screen. Waits for a real size:
+    /// the first layout can report zero, which would make the zoom NaN and the map blank.
+    private func setUpCamera(in size: CGSize) {
+        guard zoom == 0, size.width > 0, size.height > 0 else { return }
+        let fit = MapTransform(size: size, map: map, zoom: 1, offset: .zero)
+        let start = min(max(size.height * 0.6 / (map.height * fit.fit), 1), 2.2)
+        guard start.isFinite else { return }
+        zoom = start
+        offset = fit.clamped(
+            fit.offset(
+                placing: CGPoint(x: map.width * 0.53, y: map.height * 0.5),
+                at: CGPoint(x: size.width / 2, y: size.height * 0.48),
+                zoom: start
+            ),
+            zoom: start, map: map, bottomInset: bottomInset
+        )
+    }
+
     var body: some View {
         GeometryReader { geo in
             let t = MapTransform(size: geo.size, map: map, zoom: max(zoom, 1), offset: offset)
@@ -177,21 +195,8 @@ struct ParisMapView: View {
                         }
                         .onEnded { _ in gestureStart = nil }
                 )
-                .onAppear {
-                    guard zoom == 0 else { return }
-                    // Start zoomed in on central Paris so the map fills the screen
-                    let fit = MapTransform(size: geo.size, map: map, zoom: 1, offset: .zero)
-                    let start = min(max(geo.size.height * 0.6 / (map.height * fit.fit), 1), 2.2)
-                    zoom = start
-                    offset = fit.clamped(
-                        fit.offset(
-                            placing: CGPoint(x: map.width * 0.53, y: map.height * 0.5),
-                            at: CGPoint(x: geo.size.width / 2, y: geo.size.height * 0.48),
-                            zoom: start
-                        ),
-                        zoom: start, map: map, bottomInset: bottomInset
-                    )
-                }
+                .onAppear { setUpCamera(in: geo.size) }
+                .onChange(of: geo.size) { setUpCamera(in: geo.size) }
                 .onChange(of: selected) {
                     // Bring the selection into view above the card
                     guard let selected else { return }
@@ -279,6 +284,7 @@ private struct MapCanvas: View, Animatable {
 
     var body: some View {
         Canvas { context, _ in
+            guard size.width > 0, size.height > 0, zoom.isFinite, offsetX.isFinite, offsetY.isFinite else { return }
             let p = palette
             let accent = Color.accentColor
             let t = MapTransform(size: size, map: map, zoom: zoom, offset: CGPoint(x: offsetX, y: offsetY))

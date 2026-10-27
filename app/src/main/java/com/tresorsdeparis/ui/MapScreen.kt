@@ -400,7 +400,8 @@ fun ParisMap(
             clamp(target - Offset(z * (origin.x + x * fit), z * (origin.y + y * fit)), z)
 
         // Start zoomed in on central Paris so the map fills the screen
-        if (zoom == 0f) {
+        // Wait for a real size: a zero size would make the zoom NaN and the map blank
+        if (zoom == 0f && width > 0f && height > 0f) {
             val start = (height * 0.6f / (map.height * fit)).coerceIn(1f, 2.2f)
             zoom = start
             offset = offsetFor(map.width * 0.53f, map.height * 0.5f, start, Offset(width / 2, height * 0.48f))
@@ -446,6 +447,7 @@ fun ParisMap(
                     }
                 },
         ) {
+            if (zoom <= 0f || fit <= 0f) return@Canvas
             val scale = zoom * fit
             val px = 1f / scale // one screen pixel in map units
 

@@ -60,6 +60,28 @@ jobs:
             xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
           done
 
+      # Fails (and so blocks the TestFlight upload) when the map screen is drawn empty
+      - name: Check the map is drawn
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow
+          "$RUNNER_TEMP/venv/bin/python" - <<'EOF'
+          from PIL import Image
+          failed = False
+          for name in ["tab-1.png", "map-selected-light.png"]:
+              im = Image.open(name).convert("RGB")
+              im.thumbnail((300, 650))
+              pixels = list(im.getdata())
+              # The light-mode map is beige/gold land: warm, light, red well above blue
+              land = sum(1 for r, g, b in pixels if r >= 190 and 130 <= g <= 240 and b <= 215 and r - b >= 25)
+              share = land / len(pixels)
+              print(f"::notice title=Map check::{name}: {share:.0%} of the screen is map")
+              if share < 0.15:
+                  print(f"::error title=Map check::{name}: the map looks empty ({share:.0%} map pixels)")
+                  failed = True
+          raise SystemExit(1 if failed else 0)
+          EOF
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

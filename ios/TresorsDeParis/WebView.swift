@@ -21,8 +21,10 @@ struct WebView: UIViewRepresentable {
         webView.uiDelegate = context.coordinator
         // Swipe from the edge to go back/forward, like the Android back button
         webView.allowsBackForwardNavigationGestures = true
+        // The website is designed for light mode only, as in the Android app
+        webView.overrideUserInterfaceStyle = .light
         webView.isOpaque = false
-        webView.backgroundColor = .systemBackground
+        webView.backgroundColor = .white
 
         let refreshControl = UIRefreshControl()
         refreshControl.addTarget(context.coordinator, action: #selector(Coordinator.refresh), for: .valueChanged)

@@ -32,7 +32,8 @@ struct WebsiteView: View {
                 }
             }
         }
-        .background(Color(uiColor: .systemBackground))
+        // White like the (always light) website, so dark mode doesn't flash behind it
+        .background(Color.white)
     }
 }
 
