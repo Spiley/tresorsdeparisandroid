@@ -1,13 +1,38 @@
 import SwiftUI
 
 struct HomeView: View {
-    @State private var model = PostListModel(source: .latest)
+    @State private var model = PostListModel.shared(for: .latest)
 
     var body: some View {
         NavigationStack {
-            PostListView(model: model)
-                .navigationTitle("Trésors de Paris")
-                .navigationDestination(for: Post.self) { ArticleView(post: $0) }
+            FeaturedPostList(model: model) {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("TRÉSORS DE PARIS")
+                            .font(.footnote.weight(.semibold))
+                            .tracking(2)
+                            .foregroundStyle(Color.accentColor)
+                        Text("Your insider's guide to Paris")
+                            .font(.title.bold())
+                            .fontDesign(.serif)
+                    }
+                    Spacer()
+                    NavigationLink {
+                        WebsiteView()
+                            .navigationTitle("Website")
+                            .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        Image(systemName: "safari")
+                            .font(.title3)
+                            .frame(width: 44, height: 44)
+                            .background(Color.accentColor.opacity(0.15), in: Circle())
+                    }
+                    .accessibilityLabel("Open the website")
+                }
+                .padding(.top, 8)
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Post.self) { ArticleView(post: $0) }
         }
     }
 }

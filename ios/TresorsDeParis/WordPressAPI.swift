@@ -36,7 +36,7 @@ enum WordPressAPI {
         let totalPages: Int
     }
 
-    static func posts(page: Int, categoryID: Int? = nil, search: String? = nil) async throws -> Page {
+    static func posts(page: Int, categoryID: Int? = nil, tagID: Int? = nil, search: String? = nil) async throws -> Page {
         var items = [
             URLQueryItem(name: "per_page", value: "20"),
             URLQueryItem(name: "page", value: String(page)),
@@ -45,6 +45,9 @@ enum WordPressAPI {
         ]
         if let categoryID {
             items.append(URLQueryItem(name: "categories", value: String(categoryID)))
+        }
+        if let tagID {
+            items.append(URLQueryItem(name: "tags", value: String(tagID)))
         }
         if let search {
             items.append(URLQueryItem(name: "search", value: search))
@@ -74,6 +77,25 @@ enum WordPressAPI {
         ]
         let (data, _) = try await fetch(url(path: "categories", items: items))
         return try JSONDecoder().decode([PostCategory].self, from: data)
+    }
+
+    struct Tag: Decodable {
+        let id: Int
+        let slug: String
+        let count: Int
+    }
+
+    /// The arrondissement tags (slugs 75001...75020), keyed by arrondissement number.
+    static func arrondissementTags() async throws -> [Int: Tag] {
+        let slugs = (1...20).map { String(75000 + $0) }.joined(separator: ",")
+        let items = [
+            URLQueryItem(name: "slug", value: slugs),
+            URLQueryItem(name: "per_page", value: "30"),
+            URLQueryItem(name: "_fields", value: "id,slug,count"),
+        ]
+        let (data, _) = try await fetch(url(path: "tags", items: items))
+        let tags = try JSONDecoder().decode([Tag].self, from: data)
+        return Dictionary(tags.compactMap { tag in Int(tag.slug).map { ($0 - 75000, tag) } }) { first, _ in first }
     }
 
     private static func url(path: String, items: [URLQueryItem]) -> URL {

@@ -50,6 +50,15 @@ jobs:
             xcrun simctl io "$DEVICE" screenshot "tab-$TAB.png"
             xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
           done
+          # Map with the 8th arrondissement selected, in light and dark mode
+          for MODE in light dark; do
+            xcrun simctl ui "$DEVICE" appearance $MODE
+            xcrun simctl terminate "$DEVICE" com.tresorsdeparis || true
+            xcrun simctl launch "$DEVICE" com.tresorsdeparis -startTab 1 -selectArrondissement 8
+            sleep 12
+            xcrun simctl io "$DEVICE" screenshot "map-selected-$MODE.png"
+            xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
+          done
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -9,17 +9,17 @@ struct ContentView: View {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(0)
+            MapView()
+                .tabItem { Label("Map", systemImage: "map") }
+                .tag(1)
             CategoriesView()
                 .tabItem { Label("Categories", systemImage: "square.grid.2x2") }
-                .tag(1)
+                .tag(2)
             SearchView()
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
-                .tag(2)
+                .tag(3)
             FavoritesView()
                 .tabItem { Label("Favorites", systemImage: "heart") }
-                .tag(3)
-            WebsiteView()
-                .tabItem { Label("Website", systemImage: "safari") }
                 .tag(4)
         }
     }
