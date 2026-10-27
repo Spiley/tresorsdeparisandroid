@@ -1,6 +1,33 @@
 import SwiftUI
 import WebKit
 
+/// Blocks Google's ad scripts in the app's web views; the website itself keeps them.
+enum AdBlocker {
+    private static let rules = #"""
+    [
+      {"trigger": {"url-filter": "^https?://([^/]+\\.)?googlesyndication\\.com/"}, "action": {"type": "block"}},
+      {"trigger": {"url-filter": "^https?://([^/]+\\.)?doubleclick\\.net/"}, "action": {"type": "block"}},
+      {"trigger": {"url-filter": "^https?://([^/]+\\.)?googleadservices\\.com/"}, "action": {"type": "block"}},
+      {"trigger": {"url-filter": "^https?://adservice\\.google\\."}, "action": {"type": "block"}}
+    ]
+    """#
+
+    /// Adds the block rules to the web view, then calls `ready` on the main thread (also if compiling fails).
+    static func install(on webView: WKWebView, ready: @escaping () -> Void) {
+        WKContentRuleListStore.default().compileContentRuleList(
+            forIdentifier: "BlockAds",
+            encodedContentRuleList: rules
+        ) { list, _ in
+            DispatchQueue.main.async {
+                if let list {
+                    webView.configuration.userContentController.add(list)
+                }
+                ready()
+            }
+        }
+    }
+}
+
 /// Shows the full website. Reports loading/failure and reloads whenever `reloadToken` changes.
 struct WebView: UIViewRepresentable {
     let url: URL
@@ -32,7 +59,9 @@ struct WebView: UIViewRepresentable {
 
         context.coordinator.webView = webView
         context.coordinator.reloadToken = reloadToken
-        webView.load(URLRequest(url: url))
+        AdBlocker.install(on: webView) {
+            webView.load(URLRequest(url: url))
+        }
         return webView
     }
 

@@ -113,18 +113,28 @@ private struct ArticleWebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .systemBackground
+        let coordinator = context.coordinator
+        AdBlocker.install(on: webView) {
+            coordinator.rulesReady = true
+            if let html = coordinator.html {
+                webView.loadHTMLString(html, baseURL: WordPressAPI.site)
+            }
+        }
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         guard context.coordinator.html != html else { return }
         context.coordinator.html = html
+        // Until the ad block rules are in place, the html is loaded once they are
+        guard context.coordinator.rulesReady else { return }
         webView.loadHTMLString(html, baseURL: WordPressAPI.site)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         let openLink: (URL) -> Void
         var html: String?
+        var rulesReady = false
 
         init(openLink: @escaping (URL) -> Void) {
             self.openLink = openLink
