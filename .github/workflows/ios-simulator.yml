@@ -51,7 +51,8 @@ jobs:
           for TAB in 0 1 2 3 4; do
             xcrun simctl terminate "$DEVICE" com.tresorsdeparis || true
             xcrun simctl launch "$DEVICE" com.tresorsdeparis -startTab $TAB
-            sleep 12
+            # Slow runners can still show the launch screen after 12 seconds
+            sleep 20
             xcrun simctl io "$DEVICE" screenshot "tab-$TAB.png"
             xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
           done
@@ -60,7 +61,7 @@ jobs:
             xcrun simctl ui "$DEVICE" appearance $MODE
             xcrun simctl terminate "$DEVICE" com.tresorsdeparis || true
             xcrun simctl launch "$DEVICE" com.tresorsdeparis -startTab 1 -selectArrondissement 8
-            sleep 12
+            sleep 20
             xcrun simctl io "$DEVICE" screenshot "map-selected-$MODE.png"
             xcrun simctl spawn "$DEVICE" launchctl list | grep -q com.tresorsdeparis
           done
@@ -106,14 +107,14 @@ jobs:
           for TAB in 0 1 2; do
             xcrun simctl terminate "$IPAD" com.tresorsdeparis || true
             xcrun simctl launch "$IPAD" com.tresorsdeparis -startTab $TAB
-            sleep 12
+            sleep 20
             xcrun simctl io "$IPAD" screenshot "ipad-tab-$TAB.png"
           done
           for MODE in light dark; do
             xcrun simctl ui "$IPAD" appearance $MODE
             xcrun simctl terminate "$IPAD" com.tresorsdeparis || true
             xcrun simctl launch "$IPAD" com.tresorsdeparis -startTab 1 -selectArrondissement 8
-            sleep 12
+            sleep 20
             xcrun simctl io "$IPAD" screenshot "ipad-map-selected-$MODE.png"
           done
 
