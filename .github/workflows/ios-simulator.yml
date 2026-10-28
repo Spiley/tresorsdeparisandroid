@@ -87,6 +87,36 @@ jobs:
           raise SystemExit(1 if failed else 0)
           EOF
 
+      # App Store Connect also asks for 13-inch iPad screenshots; never blocks the TestFlight upload
+      - name: iPad screenshots
+        continue-on-error: true
+        run: |
+          IPAD=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in devices if ".iOS-" in r), key=lambda r: [int(p) for p in r.split(".iOS-")[1].split("-")])
+          print(next(d["udid"] for d in devices[ios[-1]] if d["name"].startswith("iPad Pro 13")))
+          ')
+          xcrun simctl boot "$IPAD"
+          xcrun simctl bootstatus "$IPAD" -b
+          xcrun simctl status_bar "$IPAD" override --time 9:41 --dataNetwork wifi --wifiBars 3 \
+            --batteryState charged --batteryLevel 100
+          xcrun simctl ui "$IPAD" appearance light
+          xcrun simctl install "$IPAD" build/Build/Products/Debug-iphonesimulator/TresorsDeParis.app
+          for TAB in 0 1 2; do
+            xcrun simctl terminate "$IPAD" com.tresorsdeparis || true
+            xcrun simctl launch "$IPAD" com.tresorsdeparis -startTab $TAB
+            sleep 12
+            xcrun simctl io "$IPAD" screenshot "ipad-tab-$TAB.png"
+          done
+          for MODE in light dark; do
+            xcrun simctl ui "$IPAD" appearance $MODE
+            xcrun simctl terminate "$IPAD" com.tresorsdeparis || true
+            xcrun simctl launch "$IPAD" com.tresorsdeparis -startTab 1 -selectArrondissement 8
+            sleep 12
+            xcrun simctl io "$IPAD" screenshot "ipad-map-selected-$MODE.png"
+          done
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
