@@ -7,7 +7,7 @@ final class PostListModel {
     enum Source: Hashable {
         case latest
         case category(Int)
-        case tag(Int)
+        case tags([Int])
         case search(String)
     }
 
@@ -53,8 +53,8 @@ final class PostListModel {
                 result = try await WordPressAPI.posts(page: next)
             case .category(let id):
                 result = try await WordPressAPI.posts(page: next, categoryID: id)
-            case .tag(let id):
-                result = try await WordPressAPI.posts(page: next, tagID: id)
+            case .tags(let ids):
+                result = try await WordPressAPI.posts(page: next, tagIDs: ids)
             case .search(let query):
                 result = try await WordPressAPI.posts(page: next, search: query)
             }

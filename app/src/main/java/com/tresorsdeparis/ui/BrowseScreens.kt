@@ -50,12 +50,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.tresorsdeparis.data.Arrondissement
+import androidx.core.net.toUri
+import com.tresorsdeparis.data.MapArea
+import com.tresorsdeparis.data.MenuItem
 import com.tresorsdeparis.data.PostCategory
 import com.tresorsdeparis.data.PostSource
+import com.tresorsdeparis.data.WordPressApi
 
 @Composable
 fun HomeScreen(app: AppState, open: (Screen) -> Unit) {
@@ -78,7 +82,7 @@ fun HomeScreen(app: AppState, open: (Screen) -> Unit) {
                     )
                     Text("Your insider's guide to Paris", style = MaterialTheme.typography.headlineMedium)
                 }
-                FilledTonalIconButton(onClick = { open(Screen.Website) }) {
+                FilledTonalIconButton(onClick = { open(Screen.Website()) }) {
                     Icon(Icons.Outlined.Language, contentDescription = "Open the website")
                 }
             }
@@ -86,68 +90,62 @@ fun HomeScreen(app: AppState, open: (Screen) -> Unit) {
     )
 }
 
+/** The website's hamburger menu, or one of its submenus when [parent] is set. */
 @Composable
-fun CategoriesScreen(app: AppState, open: (Screen) -> Unit) {
+fun MenuScreen(app: AppState, parent: MenuItem?, back: (() -> Unit)?, open: (Screen) -> Unit) {
+    val context = LocalContext.current
     LaunchedEffect(Unit) {
-        if (app.categories.isEmpty()) app.loadCategories()
+        if (app.menu.isEmpty()) app.loadMenu()
     }
-    val categories = app.categories
-    val topLevel = categories.filter { it.parent == 0 && it.id != 1 }.sortedBy { it.name }
-    fun children(parent: PostCategory) = categories.filter { it.parent == parent.id }.sortedBy { it.name }
 
-    ScreenScaffold("Categories") { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when {
-                categories.isEmpty() && app.categoriesFailed -> OfflineView(onRetry = app::loadCategories)
-                categories.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                else -> LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    topLevel.filter { children(it).isNotEmpty() }.forEach { parent ->
-                        item(key = parent.id) {
-                            CategoryGroup(parent.name, listOf(parent.copy(name = "All ${parent.name}")) + children(parent), open)
-                        }
-                    }
-                    item(key = "more") {
-                        CategoryGroup("More topics", topLevel.filter { children(it).isEmpty() }, open)
-                    }
-                }
-            }
+    fun category(item: MenuItem) = item.url.takeIf { "/category/" in it }
+        ?.trimEnd('/')?.substringAfterLast('/')
+        ?.let { slug -> app.categories.firstOrNull { it.slug == slug } }
+
+    fun select(item: MenuItem) {
+        val category = category(item)
+        when {
+            item.children.isNotEmpty() -> open(Screen.Menu(item))
+            category != null -> open(Screen.CategoryPosts(category.copy(name = item.title)))
+            item.url.startsWith(WordPressApi.SITE) -> open(Screen.Website(item.url, item.title))
+            else -> openLink(context, item.url.toUri())
         }
     }
-}
 
-/** A titled, rounded group of categories. */
-@Composable
-private fun CategoryGroup(title: String, categories: List<PostCategory>, open: (Screen) -> Unit) {
-    Column {
-        Text(
-            title.uppercase(),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),
-        )
-        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-            Column {
-                categories.forEachIndexed { index, category ->
-                    ListItem(
-                        headlineContent = { Text(category.name) },
-                        trailingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("${category.count}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Icon(
-                                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+    // A submenu starts with the page of the item itself, unless that is empty or already listed
+    val items = when {
+        parent == null -> app.menu
+        parent.children.any { it.url == parent.url } || category(parent)?.count == 0 -> parent.children
+        else -> listOf(parent.copy(title = "All ${parent.title}", children = emptyList())) + parent.children
+    }
+
+    ScreenScaffold(parent?.title ?: "Menu", onBack = back) { padding ->
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            when {
+                items.isEmpty() && app.menuFailed -> OfflineView(onRetry = app::loadMenu)
+                items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                else -> LazyColumn(contentPadding = PaddingValues(16.dp)) {
+                    item {
+                        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                            Column {
+                                items.forEachIndexed { index, item ->
+                                    ListItem(
+                                        headlineContent = { Text(item.title) },
+                                        trailingContent = {
+                                            Icon(
+                                                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                        modifier = Modifier.clickable { select(item) },
+                                    )
+                                    if (index < items.lastIndex) HorizontalDivider(Modifier.padding(start = 16.dp))
+                                }
                             }
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { open(Screen.CategoryPosts(category)) },
-                    )
-                    if (index < categories.lastIndex) HorizontalDivider(Modifier.padding(start = 16.dp))
+                        }
+                    }
                 }
             }
         }
@@ -162,20 +160,24 @@ fun CategoryPostsScreen(app: AppState, category: PostCategory, back: () -> Unit,
 }
 
 @Composable
-fun ArrondissementPostsScreen(app: AppState, arrondissement: Arrondissement, back: () -> Unit, open: (Screen) -> Unit) {
+fun AreaPostsScreen(app: AppState, area: MapArea, back: () -> Unit, open: (Screen) -> Unit) {
     // The map may have opened before the tags loaded (e.g. offline), so look them up here too
     LaunchedEffect(Unit) {
-        if (!app.tagsLoaded) app.loadArrondissementTags()
+        if (!app.tagsLoaded) app.loadPostalTags()
     }
-    val tag = app.arrondissementTags[arrondissement.number]
-    val emptyMessage = "No articles about the ${arrondissement.ordinal} yet."
+    val tags = app.postalTags.filter { it.slug.startsWith(area.code) }
+    val emptyMessage = "No articles about ${area.short} yet."
 
-    ScreenScaffold(arrondissement.title, onBack = back) { padding ->
+    ScreenScaffold(area.title, onBack = back) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             when {
-                tag != null -> PostList(app.posts(PostSource.Tag(tag.id)), onOpen = { open(Screen.Article(it)) }, emptyMessage = emptyMessage)
+                tags.isNotEmpty() -> PostList(
+                    app.posts(PostSource.Tags(tags.map { it.id })),
+                    onOpen = { open(Screen.Article(it)) },
+                    emptyMessage = emptyMessage,
+                )
                 app.tagsLoaded -> EmptyView(Icons.Outlined.Map, emptyMessage)
-                app.tagsFailed -> OfflineView(onRetry = app::loadArrondissementTags)
+                app.tagsFailed -> OfflineView(onRetry = app::loadPostalTags)
                 else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
         }

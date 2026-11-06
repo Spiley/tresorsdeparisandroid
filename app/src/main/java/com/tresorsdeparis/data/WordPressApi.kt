@@ -43,9 +43,13 @@ data class Post(
     }
 }
 
-data class PostCategory(val id: Int, val name: String, val count: Int, val parent: Int)
+data class PostCategory(val id: Int, val name: String, val slug: String, val count: Int)
 
-data class ArrondissementTag(val id: Int, val count: Int)
+/** A tag named after a five digit postcode, like 75008 or 93330. */
+data class PostalTag(val id: Int, val slug: String, val count: Int)
+
+/** An item of the website's hamburger menu. */
+data class MenuItem(val title: String, val url: String, val children: List<MenuItem>)
 
 sealed interface PostSource {
     val key: String
@@ -58,8 +62,8 @@ sealed interface PostSource {
         override val key = "category-$id"
     }
 
-    data class Tag(val id: Int) : PostSource {
-        override val key = "tag-$id"
+    data class Tags(val ids: List<Int>) : PostSource {
+        override val key = "tags-" + ids.sorted().joinToString(",")
     }
 
     data class Search(val query: String) : PostSource {
@@ -90,7 +94,7 @@ object WordPressApi {
         when (source) {
             PostSource.Latest -> Unit
             is PostSource.Category -> params += "categories" to source.id.toString()
-            is PostSource.Tag -> params += "tags" to source.id.toString()
+            is PostSource.Tags -> params += "tags" to source.ids.joinToString(",")
             is PostSource.Search -> params += "search" to source.query
         }
         val response = fetch(url("posts", params))
@@ -105,29 +109,61 @@ object WordPressApi {
     }
 
     suspend fun categories(): List<PostCategory> {
-        val params = listOf("per_page" to "100", "hide_empty" to "true", "_fields" to "id,name,count,parent")
+        val params = listOf("per_page" to "100", "_fields" to "id,name,slug,count")
         val array = JSONArray(fetch(url("categories", params)).body)
         return (0 until array.length()).map {
             val json = array.getJSONObject(it)
             PostCategory(
                 id = json.getInt("id"),
                 name = json.getString("name").htmlStripped(),
+                slug = json.getString("slug"),
                 count = json.getInt("count"),
-                parent = json.getInt("parent"),
             )
         }
     }
 
-    /** The arrondissement tags (slugs 75001...75020), keyed by arrondissement number. */
-    suspend fun arrondissementTags(): Map<Int, ArrondissementTag> {
-        val slugs = (1..20).joinToString(",") { (75000 + it).toString() }
-        val params = listOf("slug" to slugs, "per_page" to "30", "_fields" to "id,slug,count")
-        val array = JSONArray(fetch(url("tags", params)).body)
-        return (0 until array.length()).mapNotNull {
-            val json = array.getJSONObject(it)
-            val number = json.getString("slug").toIntOrNull()?.minus(75000) ?: return@mapNotNull null
-            number to ArrondissementTag(json.getInt("id"), json.getInt("count"))
-        }.toMap()
+    /** All tags with articles that are postcodes; new ones on the website show up by themselves. */
+    suspend fun postalTags(): List<PostalTag> {
+        val tags = mutableListOf<PostalTag>()
+        var page = 1
+        do {
+            val params = listOf("per_page" to "100", "page" to page.toString(), "hide_empty" to "true", "_fields" to "id,slug,count")
+            val response = fetch(url("tags", params))
+            val array = JSONArray(response.body)
+            for (i in 0 until array.length()) {
+                val json = array.getJSONObject(i)
+                val slug = json.getString("slug")
+                if (slug.length == 5 && slug.all(Char::isDigit)) tags += PostalTag(json.getInt("id"), slug, json.getInt("count"))
+            }
+        } while (page++ < response.totalPages)
+        return tags
+    }
+
+    /** The website's hamburger menu, read from its home page so it follows the website. */
+    suspend fun menu(): List<MenuItem> = parseMenu(fetch(SITE).body)
+
+    private class MenuNode(val title: String, val url: String) {
+        val children = mutableListOf<MenuNode>()
+
+        fun toItem(): MenuItem = MenuItem(title, url, children.map { it.toItem() })
+    }
+
+    private val menuTokens = Regex("""<ul\b[^>]*>|</ul>|<a\b[^>]*?href="([^"]*)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
+
+    private fun parseMenu(html: String): List<MenuItem> {
+        val start = html.indexOf("id=\"site-navigation\"")
+        val end = html.indexOf("</nav>", start)
+        if (start < 0 || end < 0) throw IOException("The website has no menu")
+        val root = mutableListOf<MenuNode>()
+        val open = ArrayDeque<MutableList<MenuNode>>()
+        for (token in menuTokens.findAll(html.substring(start, end))) {
+            when {
+                token.value == "</ul>" -> open.removeLastOrNull()
+                token.value.startsWith("<ul") -> open.addLast(open.lastOrNull()?.lastOrNull()?.children ?: root)
+                else -> open.lastOrNull()?.add(MenuNode(token.groupValues[2].htmlStripped(), token.groupValues[1].htmlStripped()))
+            }
+        }
+        return root.map { it.toItem() }
     }
 
     private fun url(path: String, params: List<Pair<String, String>>): String =

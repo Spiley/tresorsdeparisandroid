@@ -10,12 +10,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Search
@@ -44,11 +44,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
-import com.tresorsdeparis.data.Arrondissement
-import com.tresorsdeparis.data.ArrondissementTag
 import com.tresorsdeparis.data.FavoritesStore
+import com.tresorsdeparis.data.MapArea
+import com.tresorsdeparis.data.MenuItem
 import com.tresorsdeparis.data.Post
 import com.tresorsdeparis.data.PostCategory
+import com.tresorsdeparis.data.PostalTag
 import com.tresorsdeparis.data.PostSource
 import com.tresorsdeparis.data.WordPressApi
 import kotlinx.coroutines.CancellationException
@@ -60,7 +61,7 @@ val LocalFavorites = staticCompositionLocalOf<FavoritesStore> { error("Favorites
 enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     Home("Home", Icons.Outlined.Home, Icons.Filled.Home),
     Map("Map", Icons.Outlined.Map, Icons.Filled.Map),
-    Categories("Categories", Icons.Outlined.GridView, Icons.Filled.GridView),
+    Menu("Menu", Icons.Outlined.Menu, Icons.Filled.Menu),
     Search("Search", Icons.Outlined.Search, Icons.Filled.Search),
     Favorites("Favorites", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
 }
@@ -69,8 +70,9 @@ enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: Image
 sealed interface Screen {
     data class Article(val post: Post) : Screen
     data class CategoryPosts(val category: PostCategory) : Screen
-    data class ArrondissementPosts(val arrondissement: Arrondissement) : Screen
-    data object Website : Screen
+    data class AreaPosts(val area: MapArea) : Screen
+    data class Menu(val item: MenuItem) : Screen
+    data class Website(val url: String = WordPressApi.SITE, val title: String = "Website") : Screen
 }
 
 /** App-wide state that should survive switching tabs and navigating back. */
@@ -83,33 +85,36 @@ class AppState(private val scope: CoroutineScope) {
 
     var categories by mutableStateOf<List<PostCategory>>(emptyList())
         private set
-    var categoriesFailed by mutableStateOf(false)
+    var menu by mutableStateOf<List<MenuItem>>(emptyList())
+        private set
+    var menuFailed by mutableStateOf(false)
         private set
 
-    fun loadCategories() {
-        categoriesFailed = false
+    fun loadMenu() {
+        menuFailed = false
         scope.launch {
             try {
                 categories = WordPressApi.categories()
+                menu = WordPressApi.menu()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                categoriesFailed = true
+                menuFailed = true
             }
         }
     }
 
-    var arrondissementTags by mutableStateOf<Map<Int, ArrondissementTag>>(emptyMap())
+    var postalTags by mutableStateOf<List<PostalTag>>(emptyList())
         private set
     var tagsLoaded by mutableStateOf(false)
         private set
     var tagsFailed by mutableStateOf(false)
         private set
 
-    fun loadArrondissementTags() {
+    fun loadPostalTags() {
         tagsFailed = false
         scope.launch {
             try {
-                arrondissementTags = WordPressApi.arrondissementTags()
+                postalTags = WordPressApi.postalTags()
                 tagsLoaded = true
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -171,14 +176,15 @@ fun TresorsApp(startTab: Int = 0) {
                     null -> when (tab) {
                         Tab.Home -> HomeScreen(app, ::open)
                         Tab.Map -> MapScreen(app, ::open)
-                        Tab.Categories -> CategoriesScreen(app, ::open)
+                        Tab.Menu -> MenuScreen(app, null, null, ::open)
                         Tab.Search -> SearchScreen(app, ::open)
                         Tab.Favorites -> FavoritesScreen(::open)
                     }
                     is Screen.Article -> ArticleScreen(screen.post, ::back)
                     is Screen.CategoryPosts -> CategoryPostsScreen(app, screen.category, ::back, ::open)
-                    is Screen.ArrondissementPosts -> ArrondissementPostsScreen(app, screen.arrondissement, ::back, ::open)
-                    Screen.Website -> WebsiteScreen(::back)
+                    is Screen.AreaPosts -> AreaPostsScreen(app, screen.area, ::back, ::open)
+                    is Screen.Menu -> MenuScreen(app, screen.item, ::back, ::open)
+                    is Screen.Website -> WebsiteScreen(screen.url, screen.title, ::back)
                 }
             }
         }

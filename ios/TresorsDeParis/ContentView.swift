@@ -12,8 +12,8 @@ struct ContentView: View {
             MapView()
                 .tabItem { Label("Map", systemImage: "map") }
                 .tag(1)
-            CategoriesView()
-                .tabItem { Label("Categories", systemImage: "square.grid.2x2") }
+            MenuView()
+                .tabItem { Label("Menu", systemImage: "line.3.horizontal") }
                 .tag(2)
             SearchView()
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }

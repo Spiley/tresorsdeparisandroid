@@ -25,12 +25,11 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.tresorsdeparis.data.WordPressApi
 
-/** The full tresors-de-paris.com website, as in the original app. */
+/** A page of the full tresors-de-paris.com website, as in the original app. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun WebsiteScreen(back: () -> Unit) {
+fun WebsiteScreen(url: String, title: String, back: () -> Unit) {
     var isLoading by remember { mutableStateOf(true) }
     var failed by remember { mutableStateOf(false) }
     var canGoBack by remember { mutableStateOf(false) }
@@ -39,7 +38,7 @@ fun WebsiteScreen(back: () -> Unit) {
 
     BackHandler(enabled = canGoBack) { webView?.goBack() }
 
-    ScreenScaffold("Website", onBack = back) { padding ->
+    ScreenScaffold(title, onBack = back) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             AndroidView(
                 factory = { context ->
@@ -78,7 +77,7 @@ fun WebsiteScreen(back: () -> Unit) {
                                     canGoBack = view.canGoBack()
                                 }
                             }
-                            loadUrl(WordPressApi.SITE)
+                            loadUrl(url)
                         }
                         webView = view
                         addView(view)

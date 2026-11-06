@@ -12,17 +12,31 @@ struct Post: Identifiable, Codable, Hashable {
 struct PostCategory: Identifiable, Decodable, Hashable {
     let id: Int
     let name: String
+    let slug: String
     let count: Int
-    let parent: Int
 
-    enum CodingKeys: String, CodingKey { case id, name, count, parent }
+    enum CodingKeys: String, CodingKey { case id, name, slug, count }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(Int.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name).htmlDecoded
+        slug = try c.decode(String.self, forKey: .slug)
         count = try c.decode(Int.self, forKey: .count)
-        parent = try c.decode(Int.self, forKey: .parent)
+    }
+}
+
+/// An item of the website's hamburger menu.
+struct MenuItem: Identifiable, Hashable {
+    let title: String
+    let url: URL
+    let children: [MenuItem]
+
+    var id: String { title + url.absoluteString }
+
+    /// The category this item links to, if any.
+    var categorySlug: String? {
+        url.pathComponents.contains("category") ? url.lastPathComponent : nil
     }
 }
 
@@ -36,7 +50,7 @@ enum WordPressAPI {
         let totalPages: Int
     }
 
-    static func posts(page: Int, categoryID: Int? = nil, tagID: Int? = nil, search: String? = nil) async throws -> Page {
+    static func posts(page: Int, categoryID: Int? = nil, tagIDs: [Int]? = nil, search: String? = nil) async throws -> Page {
         var items = [
             URLQueryItem(name: "per_page", value: "20"),
             URLQueryItem(name: "page", value: String(page)),
@@ -46,8 +60,8 @@ enum WordPressAPI {
         if let categoryID {
             items.append(URLQueryItem(name: "categories", value: String(categoryID)))
         }
-        if let tagID {
-            items.append(URLQueryItem(name: "tags", value: String(tagID)))
+        if let tagIDs {
+            items.append(URLQueryItem(name: "tags", value: tagIDs.map(String.init).joined(separator: ",")))
         }
         if let search {
             items.append(URLQueryItem(name: "search", value: search))
@@ -72,8 +86,7 @@ enum WordPressAPI {
     static func categories() async throws -> [PostCategory] {
         let items = [
             URLQueryItem(name: "per_page", value: "100"),
-            URLQueryItem(name: "hide_empty", value: "true"),
-            URLQueryItem(name: "_fields", value: "id,name,count,parent"),
+            URLQueryItem(name: "_fields", value: "id,name,slug,count"),
         ]
         let (data, _) = try await fetch(url(path: "categories", items: items))
         return try JSONDecoder().decode([PostCategory].self, from: data)
@@ -85,17 +98,73 @@ enum WordPressAPI {
         let count: Int
     }
 
-    /// The arrondissement tags (slugs 75001...75020), keyed by arrondissement number.
-    static func arrondissementTags() async throws -> [Int: Tag] {
-        let slugs = (1...20).map { String(75000 + $0) }.joined(separator: ",")
-        let items = [
-            URLQueryItem(name: "slug", value: slugs),
-            URLQueryItem(name: "per_page", value: "30"),
-            URLQueryItem(name: "_fields", value: "id,slug,count"),
-        ]
-        let (data, _) = try await fetch(url(path: "tags", items: items))
-        let tags = try JSONDecoder().decode([Tag].self, from: data)
-        return Dictionary(tags.compactMap { tag in Int(tag.slug).map { ($0 - 75000, tag) } }) { first, _ in first }
+    /// All tags with articles that are postcodes; new ones on the website show up by themselves.
+    static func postalTags() async throws -> [Tag] {
+        var tags: [Tag] = []
+        var page = 1
+        var totalPages = 1
+        repeat {
+            let items = [
+                URLQueryItem(name: "per_page", value: "100"),
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "hide_empty", value: "true"),
+                URLQueryItem(name: "_fields", value: "id,slug,count"),
+            ]
+            let (data, response) = try await fetch(url(path: "tags", items: items))
+            tags += try JSONDecoder().decode([Tag].self, from: data)
+            totalPages = Int(response.value(forHTTPHeaderField: "X-WP-TotalPages") ?? "") ?? 1
+            page += 1
+        } while page <= totalPages
+        return tags.filter { $0.slug.count == 5 && $0.slug.allSatisfy(\.isNumber) }
+    }
+
+    /// The website's hamburger menu, read from its home page so it follows the website.
+    static func menu() async throws -> [MenuItem] {
+        let (data, _) = try await fetch(site)
+        guard let html = String(data: data, encoding: .utf8), let items = parseMenu(html) else {
+            throw URLError(.cannotParseResponse)
+        }
+        return items
+    }
+
+    private final class MenuNode {
+        let title: String
+        let url: URL
+        var children: [MenuNode] = []
+
+        init(title: String, url: URL) {
+            self.title = title
+            self.url = url
+        }
+
+        var item: MenuItem { MenuItem(title: title, url: url, children: children.map(\.item)) }
+    }
+
+    private static let menuTokens = try! NSRegularExpression(
+        pattern: "<ul\\b[^>]*>|</ul>|<a\\b[^>]*?href=\"([^\"]*)\"[^>]*>(.*?)</a>",
+        options: .dotMatchesLineSeparators
+    )
+
+    private static func parseMenu(_ html: String) -> [MenuItem]? {
+        guard let start = html.range(of: "id=\"site-navigation\""),
+              let end = html.range(of: "</nav>", range: start.upperBound..<html.endIndex) else { return nil }
+        let navigation = String(html[start.upperBound..<end.lowerBound]) as NSString
+        let root = MenuNode(title: "", url: site)
+        // The nodes whose lists are open; a new list belongs to the last item of the one around it
+        var open: [MenuNode] = []
+        let range = NSRange(location: 0, length: navigation.length)
+        for match in menuTokens.matches(in: navigation as String, range: range) {
+            let token = navigation.substring(with: match.range)
+            if token == "</ul>" {
+                _ = open.popLast()
+            } else if token.hasPrefix("<ul") {
+                open.append(open.last?.children.last ?? root)
+            } else if let url = URL(string: navigation.substring(with: match.range(at: 1)).htmlDecoded) {
+                let title = navigation.substring(with: match.range(at: 2)).htmlStripped
+                open.last?.children.append(MenuNode(title: title, url: url))
+            }
+        }
+        return root.children.map(\.item)
     }
 
     private static func url(path: String, items: [URLQueryItem]) -> URL {

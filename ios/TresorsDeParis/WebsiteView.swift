@@ -1,14 +1,19 @@
 import SwiftUI
 
-/// The full tresors-de-paris.com website, as in the Android app.
+/// A page of the full tresors-de-paris.com website, as in the Android app.
 struct WebsiteView: View {
+    let url: URL
     @State private var isLoading = true
     @State private var failed = false
     @State private var reloadToken = 0
 
+    init(url: URL = WordPressAPI.site) {
+        self.url = url
+    }
+
     var body: some View {
         ZStack {
-            WebView(url: WordPressAPI.site, isLoading: $isLoading, failed: $failed, reloadToken: reloadToken)
+            WebView(url: url, isLoading: $isLoading, failed: $failed, reloadToken: reloadToken)
 
             if failed {
                 OfflineView {

@@ -37,84 +37,108 @@ struct HomeView: View {
     }
 }
 
-struct CategoriesView: View {
+/// The website's hamburger menu.
+struct MenuView: View {
+    @State private var items: [MenuItem] = []
     @State private var categories: [PostCategory] = []
     @State private var failed = false
-
-    private var topLevel: [PostCategory] {
-        categories.filter { $0.parent == 0 && $0.id != 1 }.sorted { $0.name < $1.name }
-    }
-
-    private func children(of parent: PostCategory) -> [PostCategory] {
-        categories.filter { $0.parent == parent.id }.sorted { $0.name < $1.name }
-    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if categories.isEmpty {
-                    if failed {
-                        OfflineView { Task { await load() } }
-                    } else {
-                        ProgressView().controlSize(.large)
-                    }
+                if !items.isEmpty {
+                    MenuList(items: items)
+                        .refreshable { await load() }
+                } else if failed {
+                    OfflineView { Task { await load() } }
                 } else {
-                    List {
-                        ForEach(topLevel.filter { !children(of: $0).isEmpty }) { parent in
-                            Section(parent.name) {
-                                CategoryRow(category: parent, title: "All \(parent.name)")
-                                ForEach(children(of: parent)) { CategoryRow(category: $0) }
-                            }
-                        }
-                        Section("More topics") {
-                            ForEach(topLevel.filter { children(of: $0).isEmpty }) { CategoryRow(category: $0) }
-                        }
-                    }
-                    .refreshable { await load() }
+                    ProgressView().controlSize(.large)
                 }
             }
-            .navigationTitle("Categories")
-            .navigationDestination(for: PostCategory.self) { CategoryPostsView(category: $0) }
+            .navigationTitle("Menu")
+            .navigationDestination(for: MenuItem.self) { MenuDestination(item: $0, categories: categories) }
             .navigationDestination(for: Post.self) { ArticleView(post: $0) }
         }
         .task {
-            if categories.isEmpty { await load() }
+            if items.isEmpty { await load() }
         }
     }
 
     private func load() async {
+        failed = false
         do {
             categories = try await WordPressAPI.categories()
-            failed = false
+            items = try await WordPressAPI.menu()
         } catch {
             failed = true
         }
     }
 }
 
-private struct CategoryRow: View {
-    let category: PostCategory
-    var title: String?
+private struct MenuList: View {
+    let items: [MenuItem]
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
-        NavigationLink(value: category) {
-            LabeledContent(title ?? category.name, value: "\(category.count)")
+        List(items) { item in
+            if isOwnSite(item) || !item.children.isEmpty {
+                NavigationLink(item.title, value: item)
+            } else {
+                // Other websites open in Safari
+                Button(item.title) { openURL(item.url) }
+                    .foregroundStyle(.primary)
+            }
+        }
+    }
+
+    private func isOwnSite(_ item: MenuItem) -> Bool {
+        item.url.absoluteString.hasPrefix(WordPressAPI.site.absoluteString)
+    }
+}
+
+/// Where a menu item leads: its submenu, a list of articles, or a page of the website.
+private struct MenuDestination: View {
+    let item: MenuItem
+    let categories: [PostCategory]
+
+    private var category: PostCategory? {
+        categories.first { $0.slug == item.categorySlug }
+    }
+
+    /// A submenu starts with the page of the item itself, unless that is empty or already listed.
+    private var submenu: [MenuItem] {
+        if item.children.contains(where: { $0.url == item.url }) || category?.count == 0 {
+            return item.children
+        }
+        return [MenuItem(title: "All \(item.title)", url: item.url, children: [])] + item.children
+    }
+
+    var body: some View {
+        if !item.children.isEmpty {
+            MenuList(items: submenu)
+                .navigationTitle(item.title)
+        } else if let category {
+            CategoryPostsView(category: category, title: item.title)
+        } else {
+            WebsiteView(url: item.url)
+                .navigationTitle(item.title)
+                .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
 
 private struct CategoryPostsView: View {
-    let category: PostCategory
+    let title: String
     @State private var model: PostListModel
 
-    init(category: PostCategory) {
-        self.category = category
+    init(category: PostCategory, title: String? = nil) {
+        self.title = title ?? category.name
         _model = State(initialValue: PostListModel(source: .category(category.id)))
     }
 
     var body: some View {
         PostListView(model: model)
-            .navigationTitle(category.name)
+            .navigationTitle(title)
     }
 }
 
