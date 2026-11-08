@@ -45,8 +45,10 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
           echo "ASC_KEY_PATH=$ASC_KEY_PATH" >> "$GITHUB_ENV"
 
+      # Errors are also shown as annotations, so they can be read on the run page without signing in
       - name: Archive
         run: |
+          set -o pipefail
           xcodebuild -project ios/TresorsDeParis.xcodeproj -scheme TresorsDeParis \
             -configuration Release -destination 'generic/platform=iOS' \
             -archivePath build/TresorsDeParis.xcarchive \
@@ -56,10 +58,14 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
-            archive
+            archive 2>&1 | tee archive.log || {
+            grep -E "error" archive.log | sort -u | head -30 | sed 's/^/::error::/'
+            exit 1
+          }
 
       - name: Sign and upload to TestFlight
         run: |
+          set -o pipefail
           cp ios/ExportOptions.plist build/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" build/ExportOptions.plist
           xcodebuild -exportArchive \
@@ -69,7 +75,10 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee upload.log || {
+            grep -i -E "error|fail|invalid|closed|already" upload.log | sort -u | head -30 | sed 's/^/::error::/'
+            exit 1
+          }
 
       - name: Remove API key
         if: always()
