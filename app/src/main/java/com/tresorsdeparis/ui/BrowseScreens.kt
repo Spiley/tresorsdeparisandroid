@@ -74,13 +74,12 @@ fun HomeScreen(app: AppState, open: (Screen) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
+                    Text("Trésors de Paris", style = MaterialTheme.typography.headlineMedium, maxLines = 1)
                     Text(
-                        "TRÉSORS DE PARIS",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 2.sp,
+                        "Your insider's guide to Paris",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text("Your insider's guide to Paris", style = MaterialTheme.typography.headlineMedium)
                 }
                 FilledTonalIconButton(onClick = { open(Screen.Website()) }) {
                     Icon(Icons.Outlined.Language, contentDescription = "Open the website")

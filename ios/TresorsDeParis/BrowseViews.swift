@@ -8,13 +8,14 @@ struct HomeView: View {
             FeaturedPostList(model: model) {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("TRÉSORS DE PARIS")
-                            .font(.footnote.weight(.semibold))
-                            .tracking(2)
-                            .foregroundStyle(Color.accentColor)
-                        Text("Your insider's guide to Paris")
+                        Text("Trésors de Paris")
                             .font(.title.bold())
                             .fontDesign(.serif)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text("Your insider's guide to Paris")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     NavigationLink {
