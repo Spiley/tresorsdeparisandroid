@@ -46,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,11 +63,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -564,13 +565,17 @@ fun RegionMap(
         }
 
         if (zoom > 1.05f) {
-            FilledTonalIconButton(
+            // A small FAB draws its shadow at its own size, so the icon stays centred in light mode too
+            SmallFloatingActionButton(
                 onClick = { animateTo(1f, clamp(Offset.Zero, 1f)) },
+                shape = CircleShape,
+                // The theme colour is see-through, which would show the shadow beneath it
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.compositeOver(MaterialTheme.colorScheme.surface),
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 16.dp + bottomInset)
-                    .navigationBarsPadding()
-                    .shadow(4.dp, CircleShape),
+                    .navigationBarsPadding(),
             ) {
                 Icon(Icons.Outlined.ZoomInMap, contentDescription = "Show all of Île-de-France")
             }
