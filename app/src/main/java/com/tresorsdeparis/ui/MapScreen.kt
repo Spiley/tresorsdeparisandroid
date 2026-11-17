@@ -1,5 +1,9 @@
 package com.tresorsdeparis.ui
 
+import com.tresorsdeparis.data.translated
+import com.tresorsdeparis.data.Lang
+import com.tresorsdeparis.data.t
+import com.tresorsdeparis.data.plural
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
@@ -100,7 +104,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
 
-private val CardHeight = 320.dp
+/** The selected area's card; taller with a larger font size, so titles are not cut off. */
+private val CardHeight: Dp
+    @Composable get() = 320.dp + 150.dp * (LocalDensity.current.fontScale - 1f).coerceAtLeast(0f)
 
 /** The most the map can be enlarged: far enough to see the Paris landmarks. */
 private const val MaxZoom = 40f
@@ -116,7 +122,7 @@ private const val SmallParks = 1010f
 private const val TownsUntil = 700f
 
 /** The postcode tags of an area: all of a department's, or the one of an arrondissement. */
-private fun List<PostalTag>.of(area: MapArea) = filter { it.slug.startsWith(area.code) }
+private fun List<PostalTag>.of(area: MapArea) = filter { it.code.startsWith(area.code) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,7 +160,7 @@ fun MapScreen(app: AppState, open: (Screen) -> Unit) {
             Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                 Text("Île-de-France", style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    "Tap a department or arrondissement",
+                    t("Tap a department or arrondissement"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -165,7 +171,7 @@ fun MapScreen(app: AppState, open: (Screen) -> Unit) {
             onClick = { showList = true },
             modifier = Modifier.statusBarsPadding().padding(16.dp).align(Alignment.TopEnd).size(52.dp),
         ) {
-            Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "All departments and arrondissements")
+            Icon(Icons.AutoMirrored.Outlined.List, contentDescription = t("All departments and arrondissements"))
         }
 
         Text(
@@ -196,8 +202,8 @@ fun MapScreen(app: AppState, open: (Screen) -> Unit) {
                 items(map.departments + map.arrondissements, key = { it.code }) { area ->
                     ListItem(
                         leadingContent = { NumberBadge(area.badge) },
-                        headlineContent = { Text(area.title) },
-                        supportingContent = { Text(area.name) },
+                        headlineContent = { Text(areaTitle(area)) },
+                        supportingContent = { Text(areaName(area)) },
                         trailingContent = counts[area.code]?.takeIf { it > 0 }?.let { count ->
                             { Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         },
@@ -244,14 +250,14 @@ private fun AreaCard(
                 NumberBadge(area.badge)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(area.title, style = MaterialTheme.typography.titleLarge)
+                    Text(areaTitle(area), style = MaterialTheme.typography.titleLarge)
                     Text(
-                        area.name + (count?.let { " · $it ${if (it == 1) "article" else "articles"}" } ?: ""),
+                        areaName(area) + (count?.let { " · " + plural(it, "%d article", "%d articles") } ?: ""),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, contentDescription = "Close") }
+                IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, contentDescription = t("Close")) }
             }
             Spacer(Modifier.height(12.dp))
 
@@ -272,7 +278,7 @@ private fun AreaCard(
                                         PostImage(post.imageUrl, Modifier.fillMaxWidth().height(104.dp).clip(RoundedCornerShape(16.dp)))
                                         Spacer(Modifier.height(6.dp))
                                         Text(
-                                            post.title,
+                                            translated(post.title),
                                             style = MaterialTheme.typography.labelLarge,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
@@ -281,7 +287,7 @@ private fun AreaCard(
                                 }
                             }
                             state.failed -> Text(
-                                "No connection. Try again later.",
+                                t("No connection. Try again later."),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.align(Alignment.Center),
                             )
@@ -289,12 +295,12 @@ private fun AreaCard(
                         }
                     }
                     app.tagsFailed -> Text(
-                        "No connection. Try again later.",
+                        t("No connection. Try again later."),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.Center),
                     )
                     app.tagsLoaded -> Text(
-                        "No articles about ${area.short} yet.",
+                        noArticlesAbout(area),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.Center),
                     )
@@ -307,7 +313,7 @@ private fun AreaCard(
                     onClick = { open(Screen.AreaPosts(area)) },
                     modifier = Modifier.padding(horizontal = 20.dp).padding(top = 12.dp).fillMaxWidth(),
                 ) {
-                    Text(if (count == null) "See all articles" else "See all $count ${if (count == 1) "article" else "articles"}")
+                    Text(if (count == null) t("See all articles") else plural(count, "See %d article", "See all %d articles"))
                 }
             }
         }
@@ -454,7 +460,7 @@ fun RegionMap(
         Canvas(
             Modifier
                 .fillMaxSize()
-                .semantics { contentDescription = "Map of Île-de-France with its departments and the arrondissements of Paris. Use the list button to choose one." }
+                .semantics { contentDescription = t("Map of Île-de-France with its departments and the arrondissements of Paris. Use the list button to choose one.") }
                 .pointerInput(map, width, height) {
                     detectTapGestures { tap ->
                         val point = toMap(tap)
@@ -532,8 +538,8 @@ fun RegionMap(
 
             fun drawPlace(place: com.tresorsdeparis.data.MapPlace) {
                 val point = toView(place.x, place.y)
-                val width = textMeasurer.measure(place.name, placeStyle).size.width
-                if (drawLabel(textMeasurer, place.name, point + Offset(7.dp.toPx() + width / 2f, 0f), placeStyle, colors.halo, placed)) {
+                val width = textMeasurer.measure(t(place.name), placeStyle).size.width
+                if (drawLabel(textMeasurer, t(place.name), point + Offset(7.dp.toPx() + width / 2f, 0f), placeStyle, colors.halo, placed)) {
                     drawCircle(colors.halo, radius = 4.5.dp.toPx(), center = point)
                     drawCircle(colors.accent, radius = 3.dp.toPx(), center = point)
                 }
@@ -559,7 +565,7 @@ fun RegionMap(
             if (paris >= Landmarks) map.landmarks.forEach(::drawPlace)
             map.parks.forEach { park ->
                 if (paris >= (if (park.isWood) AllArrondissementNumbers else SmallParks)) {
-                    drawLabel(textMeasurer, park.name, toView(park.labelX, park.labelY), parkStyle, colors.halo, placed)
+                    drawLabel(textMeasurer, t(park.name), toView(park.labelX, park.labelY), parkStyle, colors.halo, placed)
                 }
             }
         }
@@ -577,7 +583,7 @@ fun RegionMap(
                     .padding(end = 16.dp, bottom = 16.dp + bottomInset)
                     .navigationBarsPadding(),
             ) {
-                Icon(Icons.Outlined.ZoomInMap, contentDescription = "Show all of Île-de-France")
+                Icon(Icons.Outlined.ZoomInMap, contentDescription = t("Show all of Île-de-France"))
             }
         }
     }
@@ -614,3 +620,17 @@ private fun DrawScope.drawLabel(
     drawText(layout, topLeft = topLeft)
     return true
 }
+
+/** "8th arrondissement", or "8e arrondissement" in French. */
+fun areaTitle(area: MapArea): String {
+    if (!Lang.isFrench || area.isDepartment) return area.title
+    val number = area.badge
+    return if (number == "1") "1er arrondissement" else "${number}e arrondissement"
+}
+
+/** "Department 77" or the arrondissement's name, like "Louvre". */
+fun areaName(area: MapArea): String =
+    if (Lang.isFrench && area.isDepartment) area.name.replace("Department", "Département") else area.name
+
+fun noArticlesAbout(area: MapArea): String =
+    if (Lang.isFrench) "Pas encore d'articles sur ${areaTitle(area)}." else "No articles about ${area.short} yet."

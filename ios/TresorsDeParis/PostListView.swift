@@ -71,7 +71,7 @@ final class PostListModel {
 /// A scrolling list of articles with pull-to-refresh, paging and an offline state.
 struct PostListView: View {
     let model: PostListModel
-    var emptyMessage = "No articles found."
+    var emptyMessage = t("No articles found.")
 
     var body: some View {
         Group {
@@ -101,7 +101,7 @@ struct PostListView: View {
                         HStack {
                             Spacer()
                             if model.failed {
-                                Button("Try again") { Task { await model.loadMore() } }
+                                Button(t("Try again")) { Task { await model.loadMore() } }
                             } else {
                                 ProgressView()
                             }
@@ -134,11 +134,11 @@ struct PostRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 PostDate(date: post.date)
-                Text(post.title)
+                Text(translated(post.title))
                     .font(.headline)
                     .fontDesign(.serif)
                     .lineLimit(2)
-                Text(post.excerpt)
+                Text(translated(post.excerpt))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -152,7 +152,7 @@ struct PostDate: View {
     let date: Date
 
     var body: some View {
-        Text(date.formatted(.dateTime.day().month(.wide).year()).uppercased())
+        Text(date.formatted(.dateTime.day().month(.wide).year().locale(Lang.shared.locale)).uppercased(with: Lang.shared.locale))
             .font(.caption2.weight(.semibold))
             .foregroundStyle(Color.accentColor)
     }
@@ -195,7 +195,7 @@ struct FeaturedPostList<Header: View>: View {
                 if !model.posts.isEmpty && (model.canLoadMore || model.failed) {
                     Group {
                         if model.failed {
-                            Button("Try again") { Task { await model.loadMore() } }
+                            Button(t("Try again")) { Task { await model.loadMore() } }
                         } else {
                             ProgressView()
                         }
@@ -231,15 +231,15 @@ struct HeroCard: View {
             }
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("LATEST STORY")
+                    Text(t("LATEST STORY"))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.accentColor)
-                    Text(post.title)
+                    Text(translated(post.title))
                         .font(.title2.bold())
                         .fontDesign(.serif)
                         .foregroundStyle(.white)
                         .lineLimit(3)
-                    Text(post.excerpt)
+                    Text(translated(post.excerpt))
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.85))
                         .lineLimit(2)
@@ -263,11 +263,11 @@ struct StoryCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 24))
             PostDate(date: post.date)
                 .padding(.top, 4)
-            Text(post.title)
+            Text(translated(post.title))
                 .font(.title3.bold())
                 .fontDesign(.serif)
                 .lineLimit(3)
-            Text(post.excerpt)
+            Text(translated(post.excerpt))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

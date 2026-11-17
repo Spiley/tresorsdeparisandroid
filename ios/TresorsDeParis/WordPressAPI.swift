@@ -96,9 +96,19 @@ enum WordPressAPI {
         let id: Int
         let slug: String
         let count: Int
+
+        /// The place code in the slug: a postcode like "75008", or a department like "77"
+        /// (whose slug on the website may be "77-seine-et-marne").
+        var code: String? {
+            let parts = slug.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+            guard let first = parts.first, first.allSatisfy(\.isASCII), first.allSatisfy(\.isNumber),
+                  first.count == 5 || first.count == 2,
+                  first.count == 2 || parts.count == 1 else { return nil }
+            return String(first)
+        }
     }
 
-    /// All tags with articles that are postcodes; new ones on the website show up by themselves.
+    /// All tags with articles that are postcodes or departments; new ones on the website show up by themselves.
     static func postalTags() async throws -> [Tag] {
         var tags: [Tag] = []
         var page = 1
@@ -115,7 +125,7 @@ enum WordPressAPI {
             totalPages = Int(response.value(forHTTPHeaderField: "X-WP-TotalPages") ?? "") ?? 1
             page += 1
         } while page <= totalPages
-        return tags.filter { $0.slug.count == 5 && $0.slug.allSatisfy(\.isNumber) }
+        return tags.filter { $0.code != nil }
     }
 
     /// The website's hamburger menu, read from its home page so it follows the website.

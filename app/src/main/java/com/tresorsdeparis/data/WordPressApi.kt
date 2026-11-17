@@ -45,8 +45,11 @@ data class Post(
 
 data class PostCategory(val id: Int, val name: String, val slug: String, val count: Int)
 
-/** A tag named after a five digit postcode, like 75008 or 93330. */
-data class PostalTag(val id: Int, val slug: String, val count: Int)
+/**
+ * A tag named after a place code: a five digit postcode like 75008 or 93330, or a
+ * department like 77 (whose slug on the website may be "77-seine-et-marne").
+ */
+data class PostalTag(val id: Int, val code: String, val count: Int)
 
 /** An item of the website's hamburger menu. */
 data class MenuItem(val title: String, val url: String, val children: List<MenuItem>)
@@ -122,7 +125,9 @@ object WordPressApi {
         }
     }
 
-    /** All tags with articles that are postcodes; new ones on the website show up by themselves. */
+    private val placeCode = Regex("""^(\d{5}|\d{2})(-.*)?$""")
+
+    /** All tags with articles that are postcodes or departments; new ones on the website show up by themselves. */
     suspend fun postalTags(): List<PostalTag> {
         val tags = mutableListOf<PostalTag>()
         var page = 1
@@ -132,8 +137,8 @@ object WordPressApi {
             val array = JSONArray(response.body)
             for (i in 0 until array.length()) {
                 val json = array.getJSONObject(i)
-                val slug = json.getString("slug")
-                if (slug.length == 5 && slug.all(Char::isDigit)) tags += PostalTag(json.getInt("id"), slug, json.getInt("count"))
+                val code = placeCode.find(json.getString("slug"))?.groupValues?.get(1) ?: continue
+                tags += PostalTag(json.getInt("id"), code, json.getInt("count"))
             }
         } while (page++ < response.totalPages)
         return tags

@@ -1,5 +1,8 @@
 package com.tresorsdeparis.ui
 
+import com.tresorsdeparis.data.t
+import com.tresorsdeparis.data.Lang
+import com.tresorsdeparis.data.translated
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -112,7 +115,7 @@ fun PostList(
     state: PostListState,
     onOpen: (Post) -> Unit,
     modifier: Modifier = Modifier,
-    emptyMessage: String = "No articles found.",
+    emptyMessage: String = t("No articles found."),
     featured: Boolean = false,
     header: (@Composable () -> Unit)? = null,
 ) {
@@ -151,7 +154,7 @@ fun PostList(
                         item {
                             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                                 if (state.failed) {
-                                    TextButton(onClick = { state.loadMore() }) { Text("Try again") }
+                                    TextButton(onClick = { state.loadMore() }) { Text(t("Try again")) }
                                 } else {
                                     CircularProgressIndicator(Modifier.size(24.dp))
                                 }
@@ -164,13 +167,11 @@ fun PostList(
     }
 }
 
-private val dateFormat = DateFormat.getDateInstance(DateFormat.LONG)
-
-fun formatDate(millis: Long): String = dateFormat.format(Date(millis))
+fun formatDate(millis: Long): String = DateFormat.getDateInstance(DateFormat.LONG, Lang.locale).format(Date(millis))
 
 /** Compact row with a rounded thumbnail, for category, search and favorite lists. */
 @Composable
-fun PostRow(post: Post, onClick: () -> Unit) {
+fun PostRow(post: Post, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -179,21 +180,22 @@ fun PostRow(post: Post, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         PostImage(post.imageUrl, Modifier.size(92.dp).clip(RoundedCornerShape(18.dp)))
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 formatDate(post.date).uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Text(post.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(translated(post.title), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                post.excerpt,
+                translated(post.excerpt),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        trailing?.invoke()
     }
 }
 
@@ -216,20 +218,20 @@ fun HeroCard(post: Post, onClick: () -> Unit) {
         )
         Column(Modifier.align(Alignment.BottomStart).padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                "LATEST STORY",
+                t("LATEST STORY"),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                post.title,
+                translated(post.title),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.White,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                post.excerpt,
+                translated(post.excerpt),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.85f),
                 maxLines = 2,
@@ -256,9 +258,9 @@ fun StoryCard(post: Post, onClick: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Text(post.title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(translated(post.title), style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
             Text(
-                post.excerpt,
+                translated(post.excerpt),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -295,11 +297,11 @@ private fun ImagePlaceholder() {
 fun OfflineView(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     EmptyView(
         icon = Icons.Outlined.WifiOff,
-        title = "No connection",
-        message = "Check your internet connection and try again. Saved favorites are still available offline.",
+        title = t("No connection"),
+        message = t("Check your internet connection and try again. Saved favorites are still available offline."),
         modifier = modifier,
     ) {
-        Button(onClick = onRetry) { Text("Try again") }
+        Button(onClick = onRetry) { Text(t("Try again")) }
     }
 }
 

@@ -1,5 +1,8 @@
 package com.tresorsdeparis.ui
 
+import com.tresorsdeparis.data.WebTranslator
+import com.tresorsdeparis.data.Lang
+import com.tresorsdeparis.data.t
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -68,18 +71,18 @@ fun ArticleScreen(post: Post, back: () -> Unit) {
             IconButton(onClick = { content?.let { favorites.toggle(post, it) } }, enabled = content != null) {
                 Icon(
                     if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                    contentDescription = if (isFavorite) t("Remove from favorites") else t("Add to favorites"),
                 )
             }
             IconButton(onClick = { share(context, post) }) {
-                Icon(Icons.Outlined.Share, contentDescription = "Share")
+                Icon(Icons.Outlined.Share, contentDescription = t("Share"))
             }
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             val html = content
             when {
-                html != null -> ArticleWebView(articlePage(post, html, isSystemInDarkTheme()))
+                html != null -> ArticleWebView(articlePage(post, html, isSystemInDarkTheme(), Lang.isFrench))
                 failed -> OfflineView(onRetry = { attempt++ })
                 else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
@@ -136,13 +139,13 @@ private fun share(context: Context, post: Post) {
     context.startActivity(Intent.createChooser(intent, null))
 }
 
-private fun articlePage(post: Post, content: String, dark: Boolean): String {
+private fun articlePage(post: Post, content: String, dark: Boolean, french: Boolean): String {
     val (background, text) = if (dark) "#121212" to "#E8E8E8" else "#FFFFFF" to "#1A1A1A"
     val link = if (dark) "#D4A94A" else "#B8892B"
     val hero = post.imageUrl?.let { "<img class=\"hero\" src=\"${it.htmlEscaped()}\" alt=\"\">" }.orEmpty()
     return """
         <!doctype html>
-        <html>
+        <html lang="en">
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -164,6 +167,7 @@ private fun articlePage(post: Post, content: String, dark: Boolean): String {
         <h1 class="title">${post.title.htmlEscaped()}</h1>
         <div class="date">${formatDate(post.date)}</div>
         $content
+        ${if (french) WebTranslator.widget else ""}
         </body>
         </html>
     """.trimIndent()

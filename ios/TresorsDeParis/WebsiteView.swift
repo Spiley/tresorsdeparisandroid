@@ -31,8 +31,8 @@ struct WebsiteView: View {
                         ProgressView()
                             .controlSize(.large)
                             .padding(.bottom, 16)
-                        Text("Loading TdP ...")
-                        Text("Your Insider's Guide to Paris")
+                        Text(t("Loading TdP ..."))
+                        Text(t("Your insider's guide to Paris"))
                     }
                 }
             }
@@ -48,11 +48,11 @@ struct OfflineView: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label("No connection", systemImage: "wifi.slash")
+            Label(t("No connection"), systemImage: "wifi.slash")
         } description: {
-            Text("Check your internet connection and try again. Saved favorites are still available offline.")
+            Text(t("Check your internet connection and try again. Saved favorites are still available offline."))
         } actions: {
-            Button("Try again", action: retry)
+            Button(t("Try again"), action: retry)
                 .buttonStyle(.borderedProminent)
         }
     }

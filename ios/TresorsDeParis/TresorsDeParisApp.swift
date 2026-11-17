@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct TresorsDeParisApp: App {
     @State private var favorites = FavoritesStore()
+    @State private var trips = TripStore()
 
     init() {
         // A larger cache keeps articles and images available when offline
@@ -22,6 +23,7 @@ struct TresorsDeParisApp: App {
         WindowGroup {
             ContentView()
                 .environment(favorites)
+                .environment(trips)
         }
     }
 }

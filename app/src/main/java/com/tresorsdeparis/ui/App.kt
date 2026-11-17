@@ -1,5 +1,10 @@
 package com.tresorsdeparis.ui
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
+import com.tresorsdeparis.data.t
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,19 +56,24 @@ import com.tresorsdeparis.data.Post
 import com.tresorsdeparis.data.PostCategory
 import com.tresorsdeparis.data.PostalTag
 import com.tresorsdeparis.data.PostSource
+import com.tresorsdeparis.data.TripStore
 import com.tresorsdeparis.data.WordPressApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 val LocalFavorites = staticCompositionLocalOf<FavoritesStore> { error("FavoritesStore not provided") }
+val LocalTrips = staticCompositionLocalOf<TripStore> { error("TripStore not provided") }
 
-enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
+enum class Tab(private val english: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     Home("Home", Icons.Outlined.Home, Icons.Filled.Home),
     Map("Map", Icons.Outlined.Map, Icons.Filled.Map),
     Menu("Menu", Icons.Outlined.Menu, Icons.Filled.Menu),
     Search("Search", Icons.Outlined.Search, Icons.Filled.Search),
     Favorites("Favorites", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
+    ;
+
+    val label get() = t(english)
 }
 
 /** Screens pushed on top of a tab. */
@@ -73,6 +83,9 @@ sealed interface Screen {
     data class AreaPosts(val area: MapArea) : Screen
     data class Menu(val item: MenuItem) : Screen
     data class Website(val url: String = WordPressApi.SITE, val title: String = "Website") : Screen
+    data class Trip(val id: String) : Screen
+    data class TripDay(val tripId: String, val day: Int) : Screen
+    data class Activity(val tripId: String, val activityId: String) : Screen
 }
 
 /** App-wide state that should survive switching tabs and navigating back. */
@@ -164,7 +177,7 @@ fun TresorsApp(startTab: Int = 0) {
                             }
                         },
                         icon = { Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null) },
-                        label = { Text(item.label) },
+                        label = { FitText(item.label) },
                     )
                 }
             }
@@ -185,6 +198,9 @@ fun TresorsApp(startTab: Int = 0) {
                     is Screen.AreaPosts -> AreaPostsScreen(app, screen.area, ::back, ::open)
                     is Screen.Menu -> MenuScreen(app, screen.item, ::back, ::open)
                     is Screen.Website -> WebsiteScreen(screen.url, screen.title, ::back)
+                    is Screen.Trip -> TripScreen(screen.id, ::back, ::open)
+                    is Screen.TripDay -> TripDayScreen(screen.tripId, screen.day, ::back, ::open)
+                    is Screen.Activity -> ActivityScreen(screen.tripId, screen.activityId, ::back, ::open)
                 }
             }
         }
@@ -216,7 +232,7 @@ fun ScreenScaffold(
                     title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         IconButton(onClick = onBack!!) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"))
                         }
                     },
                     actions = actions,
@@ -226,4 +242,24 @@ fun ScreenScaffold(
         },
         content = content,
     )
+}
+
+/**
+ * One line of text that gets smaller instead of wrapping or being cut off, for tab labels
+ * with a large font size or a long French word.
+ */
+@Composable
+private fun FitText(text: String) {
+    val style = LocalTextStyle.current
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints {
+        val width = constraints.maxWidth
+        var size = style.fontSize
+        if (size.isSp) {
+            while (size.value > 8f && measurer.measure(text, style.copy(fontSize = size), maxLines = 1, softWrap = false).size.width > width) {
+                size = (size.value * 0.92f).sp
+            }
+        }
+        Text(text, style = style.copy(fontSize = size), maxLines = 1, softWrap = false)
+    }
 }

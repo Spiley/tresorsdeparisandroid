@@ -7,19 +7,19 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView()
-                .tabItem { Label("Home", systemImage: "house") }
+                .tabItem { Label(t("Home"), systemImage: "house") }
                 .tag(0)
             MapView()
-                .tabItem { Label("Map", systemImage: "map") }
+                .tabItem { Label(t("Map"), systemImage: "map") }
                 .tag(1)
             MenuView()
-                .tabItem { Label("Menu", systemImage: "line.3.horizontal") }
+                .tabItem { Label(t("Menu"), systemImage: "line.3.horizontal") }
                 .tag(2)
             SearchView()
-                .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                .tabItem { Label(t("Search"), systemImage: "magnifyingglass") }
                 .tag(3)
             FavoritesView()
-                .tabItem { Label("Favorites", systemImage: "heart") }
+                .tabItem { Label(t("Favorites"), systemImage: "heart") }
                 .tag(4)
         }
     }
@@ -28,4 +28,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(FavoritesStore())
+        .environment(TripStore())
 }

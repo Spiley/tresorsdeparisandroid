@@ -23,7 +23,7 @@ struct MapArea: Identifiable, Decodable, Hashable {
 
     /// The postcode tags of this area: all of a department's, or the one of an arrondissement.
     func tags(in tags: [WordPressAPI.Tag]) -> [WordPressAPI.Tag] {
-        tags.filter { $0.slug.hasPrefix(code) }
+        tags.filter { $0.code?.hasPrefix(code) == true }
     }
 }
 
@@ -268,14 +268,13 @@ struct RegionMapView: View {
                                 .background(.regularMaterial, in: Circle())
                                 .shadow(radius: 4, y: 2)
                         }
-                        .accessibilityLabel("Show all of Île-de-France")
+                        .accessibilityLabel("Show all of Île-de-France".translatedForApp)
                         .padding(.trailing, 16)
                         .padding(.bottom, 16 + bottomInset)
                     }
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Map of Île-de-France with its departments and the arrondissements of Paris")
-                .accessibilityHint("Use the list button to choose one")
+                .accessibilityLabel("Map of Île-de-France with its departments and the arrondissements of Paris. Use the list button to choose one.".translatedForApp)
         }
     }
 }
@@ -412,7 +411,7 @@ private struct MapCanvas: View, Animatable {
 
             func drawPlace(_ place: MapPlace) {
                 let point = t.toView(place.location)
-                let text = Text(place.name).font(.system(size: 11, weight: .medium)).foregroundStyle(p.text)
+                let text = Text(place.name.translatedForApp).font(.system(size: 11, weight: .medium)).foregroundStyle(p.text)
                 let width = labels.resolve(text).measure(in: CGSize(width: 400, height: 100)).width
                 if draw(text, at: CGPoint(x: point.x + 7 + width / 2, y: point.y)) {
                     context.fill(Path(ellipseIn: CGRect(x: point.x - 4.5, y: point.y - 4.5, width: 9, height: 9)), with: .color(p.halo))
@@ -443,7 +442,7 @@ private struct MapCanvas: View, Animatable {
             }
             for park in map.parks where paris >= (park.isWood ? ParisWidth.allArrondissementNumbers : ParisWidth.smallParks) {
                 draw(
-                    Text(park.name).font(.system(size: 11).italic()).foregroundStyle(p.parkText),
+                    Text(park.name.translatedForApp).font(.system(size: 11).italic()).foregroundStyle(p.parkText),
                     at: t.toView(CGPoint(x: park.label[0], y: park.label[1]))
                 )
             }
@@ -485,7 +484,7 @@ struct MapView: View {
             .overlay(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Île-de-France").font(.title2.bold()).fontDesign(.serif)
-                    Text("Tap a department or arrondissement").font(.caption).foregroundStyle(.secondary)
+                    Text(t("Tap a department or arrondissement")).font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
@@ -501,7 +500,7 @@ struct MapView: View {
                         .background(.regularMaterial, in: Circle())
                         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
                 }
-                .accessibilityLabel("All departments and arrondissements")
+                .accessibilityLabel(t("All departments and arrondissements"))
                 .padding(16)
             }
             .overlay(alignment: .bottomLeading) {
@@ -581,7 +580,7 @@ private struct AreaCard: View {
             HStack(spacing: 12) {
                 NumberBadge(badge: area.badge)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(area.title).font(.title3.bold()).fontDesign(.serif)
+                    Text(area.shownTitle).font(.title3.bold()).fontDesign(.serif)
                     Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -592,7 +591,7 @@ private struct AreaCard: View {
                         .frame(width: 30, height: 30)
                         .background(Color.secondary.opacity(0.15), in: Circle())
                 }
-                .accessibilityLabel("Close")
+                .accessibilityLabel(t("Close"))
             }
             .padding(.horizontal, 20)
 
@@ -600,9 +599,9 @@ private struct AreaCard: View {
                 if !tags.isEmpty {
                     ArticlePreviewRow(model: PostListModel.shared(for: .tags(tags.map(\.id))))
                 } else if tagsFailed {
-                    Text("No connection. Try again later.").foregroundStyle(.secondary)
+                    Text(t("No connection. Try again later.")).foregroundStyle(.secondary)
                 } else if tagsLoaded {
-                    Text("No articles about \(area.short) yet.").foregroundStyle(.secondary)
+                    Text(area.noArticlesMessage).foregroundStyle(.secondary)
                 } else {
                     ProgressView()
                 }
@@ -627,13 +626,13 @@ private struct AreaCard: View {
     }
 
     private var subtitle: String {
-        guard let count else { return area.name }
-        return "\(area.name) · \(count) \(count == 1 ? "article" : "articles")"
+        guard let count else { return area.shownName }
+        return "\(area.shownName) · \(plural(count, "%d article", "%d articles"))"
     }
 
     private var seeAll: String {
-        guard let count else { return "See all articles" }
-        return "See all \(count) \(count == 1 ? "article" : "articles")"
+        guard let count else { return t("See all articles") }
+        return plural(count, "See %d article", "See all %d articles")
     }
 }
 
@@ -651,7 +650,7 @@ private struct ArticlePreviewRow: View {
                                     PostImage(url: post.imageURL)
                                         .frame(width: 170, height: 104)
                                         .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    Text(post.title)
+                                    Text(translated(post.title))
                                         .font(.footnote.weight(.semibold))
                                         .lineLimit(2)
                                         .multilineTextAlignment(.leading)
@@ -665,7 +664,7 @@ private struct ArticlePreviewRow: View {
                     .padding(.horizontal, 20)
                 }
             } else if model.failed {
-                Text("No connection. Try again later.").foregroundStyle(.secondary)
+                Text(t("No connection. Try again later.")).foregroundStyle(.secondary)
             } else {
                 ProgressView()
             }
@@ -687,8 +686,8 @@ private struct AreaList: View {
                     HStack(spacing: 14) {
                         NumberBadge(badge: area.badge)
                         VStack(alignment: .leading) {
-                            Text(area.title).foregroundStyle(.primary)
-                            Text(area.name).font(.subheadline).foregroundStyle(.secondary)
+                            Text(area.shownTitle).foregroundStyle(.primary)
+                            Text(area.shownName).font(.subheadline).foregroundStyle(.secondary)
                         }
                         Spacer()
                         if let count = counts[area.code], count > 0 {
@@ -703,7 +702,7 @@ private struct AreaList: View {
     var body: some View {
         NavigationStack {
             List {
-                section("Departments", RegionMapData.shared.departments)
+                section(t("Departments"), RegionMapData.shared.departments)
                 section("Paris", RegionMapData.shared.arrondissements)
             }
             .listStyle(.plain)
@@ -728,16 +727,16 @@ private struct AreaPostsView: View {
     var body: some View {
         Group {
             if let model {
-                PostListView(model: model, emptyMessage: "No articles about \(area.short) yet.")
+                PostListView(model: model, emptyMessage: area.noArticlesMessage)
             } else if noArticles {
-                ContentUnavailableView("No articles about \(area.short) yet.", systemImage: "map")
+                ContentUnavailableView(area.noArticlesMessage, systemImage: "map")
             } else if failed {
                 OfflineView { Task { await resolveTags() } }
             } else {
                 ProgressView().controlSize(.large)
             }
         }
-        .navigationTitle(area.title)
+        .navigationTitle(area.shownTitle)
         .toolbar(.visible, for: .navigationBar)
         .task {
             if model == nil { await resolveTags() }
@@ -757,5 +756,22 @@ private struct AreaPostsView: View {
         } catch {
             failed = true
         }
+    }
+}
+
+extension MapArea {
+    /// "8th arrondissement", or "8e arrondissement" in French.
+    var shownTitle: String {
+        guard Lang.shared.isFrench, !isDepartment else { return title }
+        return badge == "1" ? "1er arrondissement" : "\(badge)e arrondissement"
+    }
+
+    /// "Department 77" or the arrondissement's name, like "Louvre".
+    var shownName: String {
+        Lang.shared.isFrench && isDepartment ? name.replacingOccurrences(of: "Department", with: "Département") : name
+    }
+
+    var noArticlesMessage: String {
+        Lang.shared.isFrench ? "Pas encore d'articles sur \(shownTitle)." : "No articles about \(short) yet."
     }
 }

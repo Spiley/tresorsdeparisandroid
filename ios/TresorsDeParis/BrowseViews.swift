@@ -13,14 +13,15 @@ struct HomeView: View {
                             .fontDesign(.serif)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
-                        Text("Your insider's guide to Paris")
+                        Text(t("Your insider's guide to Paris"))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    LanguageButton()
                     NavigationLink {
                         WebsiteView()
-                            .navigationTitle("Website")
+                            .navigationTitle(t("Website"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
                         Image(systemName: "safari")
@@ -28,7 +29,7 @@ struct HomeView: View {
                             .frame(width: 44, height: 44)
                             .background(Color.accentColor.opacity(0.15), in: Circle())
                     }
-                    .accessibilityLabel("Open the website")
+                    .accessibilityLabel(t("Open the website"))
                 }
                 .padding(.top, 8)
             }
@@ -56,7 +57,7 @@ struct MenuView: View {
                     ProgressView().controlSize(.large)
                 }
             }
-            .navigationTitle("Menu")
+            .navigationTitle(t("Menu"))
             .navigationDestination(for: MenuItem.self) { MenuDestination(item: $0, categories: categories) }
             .navigationDestination(for: Post.self) { ArticleView(post: $0) }
         }
@@ -83,10 +84,10 @@ private struct MenuList: View {
     var body: some View {
         List(items) { item in
             if isOwnSite(item) || !item.children.isEmpty {
-                NavigationLink(item.title, value: item)
+                NavigationLink(translated(item.title), value: item)
             } else {
                 // Other websites open in Safari
-                Button(item.title) { openURL(item.url) }
+                Button(translated(item.title)) { openURL(item.url) }
                     .foregroundStyle(.primary)
             }
         }
@@ -111,18 +112,18 @@ private struct MenuDestination: View {
         if item.children.contains(where: { $0.url == item.url }) || category?.count == 0 {
             return item.children
         }
-        return [MenuItem(title: "All \(item.title)", url: item.url, children: [])] + item.children
+        return [MenuItem(title: t("All %s", translated(item.title)), url: item.url, children: [])] + item.children
     }
 
     var body: some View {
         if !item.children.isEmpty {
             MenuList(items: submenu)
-                .navigationTitle(item.title)
+                .navigationTitle(translated(item.title))
         } else if let category {
-            CategoryPostsView(category: category, title: item.title)
+            CategoryPostsView(category: category, title: translated(item.title))
         } else {
             WebsiteView(url: item.url)
-                .navigationTitle(item.title)
+                .navigationTitle(translated(item.title))
                 .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -151,20 +152,20 @@ struct SearchView: View {
         NavigationStack {
             Group {
                 if let model {
-                    PostListView(model: model, emptyMessage: "No results for “\(model.searchQuery)”")
+                    PostListView(model: model, emptyMessage: t("No results for “%s”", model.searchQuery))
                         .id(model.searchQuery)
                 } else {
                     ContentUnavailableView(
-                        "Search articles",
+                        t("Search articles"),
                         systemImage: "magnifyingglass",
-                        description: Text("Find restaurants, hidden gems, events and more in Paris.")
+                        description: Text(t("Find restaurants, hidden gems, events and more in Paris."))
                     )
                 }
             }
-            .navigationTitle("Search")
+            .navigationTitle(t("Search"))
             .navigationDestination(for: Post.self) { ArticleView(post: $0) }
         }
-        .searchable(text: $query, prompt: "Search Trésors de Paris")
+        .searchable(text: $query, prompt: t("Search Trésors de Paris"))
         .onSubmit(of: .search) {
             let trimmed = query.trimmingCharacters(in: .whitespaces)
             model = trimmed.isEmpty ? nil : PostListModel(source: .search(trimmed))
@@ -182,33 +183,29 @@ private extension PostListModel {
     }
 }
 
-struct FavoritesView: View {
-    @Environment(FavoritesStore.self) private var favorites
-
+/// Switches the app between English and French.
+struct LanguageButton: View {
     var body: some View {
-        NavigationStack {
-            Group {
-                if favorites.favorites.isEmpty {
-                    ContentUnavailableView(
-                        "No favorites yet",
-                        systemImage: "heart",
-                        description: Text("Tap the heart on an article to save it here. Saved articles can be read offline.")
-                    )
-                } else {
-                    List {
-                        ForEach(favorites.favorites) { favorite in
-                            NavigationLink(value: favorite.post) {
-                                PostRow(post: favorite.post)
-                            }
-                        }
-                        .onDelete { favorites.remove(at: $0) }
+        Menu {
+            ForEach(Language.allCases) { language in
+                Button {
+                    Lang.shared.set(language)
+                    WebTranslator.shared.languageChanged()
+                } label: {
+                    if language == Lang.shared.current {
+                        Label(language.label, systemImage: "checkmark")
+                    } else {
+                        Text(language.label)
                     }
-                    .listStyle(.plain)
-                    .toolbar { EditButton() }
                 }
             }
-            .navigationTitle("Favorites")
-            .navigationDestination(for: Post.self) { ArticleView(post: $0) }
+        } label: {
+            Label(Lang.shared.current.rawValue.uppercased(), systemImage: "translate")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12)
+                .frame(height: 44)
+                .background(Color.accentColor.opacity(0.15), in: Capsule())
         }
+        .accessibilityLabel(t("Language"))
     }
 }

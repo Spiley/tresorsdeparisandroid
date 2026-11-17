@@ -1,5 +1,16 @@
 package com.tresorsdeparis.ui
 
+import com.tresorsdeparis.data.t
+import com.tresorsdeparis.data.Lang
+import com.tresorsdeparis.data.Language
+import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import com.tresorsdeparis.data.translated
 import androidx.compose.foundation.background
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
@@ -25,7 +36,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Luggage
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.remember
+import com.tresorsdeparis.data.FavoritesStore
+import com.tresorsdeparis.data.Post
+import com.tresorsdeparis.data.TripStore
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Language
@@ -76,13 +98,14 @@ fun HomeScreen(app: AppState, open: (Screen) -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text("Trésors de Paris", style = MaterialTheme.typography.headlineMedium, maxLines = 1)
                     Text(
-                        "Your insider's guide to Paris",
+                        t("Your insider's guide to Paris"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                FilledTonalIconButton(onClick = { open(Screen.Website()) }) {
-                    Icon(Icons.Outlined.Language, contentDescription = "Open the website")
+                LanguageButton()
+                FilledTonalIconButton(onClick = { open(Screen.Website(title = t("Website"))) }) {
+                    Icon(Icons.Outlined.Language, contentDescription = t("Open the website"))
                 }
             }
         },
@@ -106,7 +129,7 @@ fun MenuScreen(app: AppState, parent: MenuItem?, back: (() -> Unit)?, open: (Scr
         when {
             item.children.isNotEmpty() -> open(Screen.Menu(item))
             category != null -> open(Screen.CategoryPosts(category.copy(name = item.title)))
-            item.url.startsWith(WordPressApi.SITE) -> open(Screen.Website(item.url, item.title))
+            item.url.startsWith(WordPressApi.SITE) -> open(Screen.Website(item.url, translated(item.title)))
             else -> openLink(context, item.url.toUri())
         }
     }
@@ -115,10 +138,10 @@ fun MenuScreen(app: AppState, parent: MenuItem?, back: (() -> Unit)?, open: (Scr
     val items = when {
         parent == null -> app.menu
         parent.children.any { it.url == parent.url } || category(parent)?.count == 0 -> parent.children
-        else -> listOf(parent.copy(title = "All ${parent.title}", children = emptyList())) + parent.children
+        else -> listOf(parent.copy(title = t("All %s", translated(parent.title)), children = emptyList())) + parent.children
     }
 
-    ScreenScaffold(parent?.title ?: "Menu", onBack = back) { padding ->
+    ScreenScaffold(parent?.title?.let(::translated) ?: t("Menu"), onBack = back) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             when {
                 items.isEmpty() && app.menuFailed -> OfflineView(onRetry = app::loadMenu)
@@ -129,7 +152,7 @@ fun MenuScreen(app: AppState, parent: MenuItem?, back: (() -> Unit)?, open: (Scr
                             Column {
                                 items.forEachIndexed { index, item ->
                                     ListItem(
-                                        headlineContent = { Text(item.title) },
+                                        headlineContent = { Text(translated(item.title)) },
                                         trailingContent = {
                                             Icon(
                                                 Icons.AutoMirrored.Outlined.KeyboardArrowRight,
@@ -153,7 +176,7 @@ fun MenuScreen(app: AppState, parent: MenuItem?, back: (() -> Unit)?, open: (Scr
 
 @Composable
 fun CategoryPostsScreen(app: AppState, category: PostCategory, back: () -> Unit, open: (Screen) -> Unit) {
-    ScreenScaffold(category.name, onBack = back) { padding ->
+    ScreenScaffold(translated(category.name), onBack = back) { padding ->
         PostList(app.posts(PostSource.Category(category.id)), onOpen = { open(Screen.Article(it)) }, Modifier.padding(padding))
     }
 }
@@ -164,10 +187,10 @@ fun AreaPostsScreen(app: AppState, area: MapArea, back: () -> Unit, open: (Scree
     LaunchedEffect(Unit) {
         if (!app.tagsLoaded) app.loadPostalTags()
     }
-    val tags = app.postalTags.filter { it.slug.startsWith(area.code) }
-    val emptyMessage = "No articles about ${area.short} yet."
+    val tags = app.postalTags.filter { it.code.startsWith(area.code) }
+    val emptyMessage = noArticlesAbout(area)
 
-    ScreenScaffold(area.title, onBack = back) { padding ->
+    ScreenScaffold(areaTitle(area), onBack = back) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             when {
                 tags.isNotEmpty() -> PostList(
@@ -189,7 +212,7 @@ fun SearchScreen(app: AppState, open: (Screen) -> Unit) {
     var submitted by rememberSaveable { mutableStateOf("") }
     val focus = LocalFocusManager.current
 
-    ScreenScaffold("Search") { padding ->
+    ScreenScaffold(t("Search")) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             TextField(
                 value = query,
@@ -197,12 +220,12 @@ fun SearchScreen(app: AppState, open: (Screen) -> Unit) {
                     query = it
                     if (it.isBlank()) submitted = ""
                 },
-                placeholder = { Text("Search Trésors de Paris") },
+                placeholder = { Text(t("Search Trésors de Paris")) },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { query = ""; submitted = "" }) {
-                            Icon(Icons.Outlined.Clear, contentDescription = "Clear")
+                            Icon(Icons.Outlined.Clear, contentDescription = t("Clear"))
                         }
                     }
                 },
@@ -220,58 +243,117 @@ fun SearchScreen(app: AppState, open: (Screen) -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (submitted.isEmpty()) {
-                EmptyView(Icons.Outlined.Search, "Search articles", "Find restaurants, hidden gems, events and more in Paris.")
+                EmptyView(Icons.Outlined.Search, t("Search articles"), t("Find restaurants, hidden gems, events and more in Paris."))
             } else {
                 PostList(
                     app.posts(PostSource.Search(submitted)),
                     onOpen = { open(Screen.Article(it)) },
-                    emptyMessage = "No results for “$submitted”",
+                    emptyMessage = t("No results for “%s”", submitted),
                 )
             }
         }
     }
 }
 
+/** Saved articles, and the trips planned with them. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(open: (Screen) -> Unit) {
     val favorites = LocalFavorites.current
-    ScreenScaffold("Favorites") { padding ->
-        if (favorites.favorites.isEmpty()) {
-            EmptyView(
-                Icons.Outlined.FavoriteBorder,
-                "No favorites yet",
-                "Tap the heart on an article to save it here. Saved articles can be read offline.",
-                Modifier.padding(padding),
-            )
-        } else {
-            LazyColumn(Modifier.padding(padding)) {
-                items(favorites.favorites, key = { it.post.id }) { favorite ->
-                    val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = {
-                        if (it == SwipeToDismissBoxValue.EndToStart) {
-                            favorites.remove(favorite.post.id)
-                            true
-                        } else {
-                            false
-                        }
-                    })
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        enableDismissFromStartToEnd = false,
-                        backgroundContent = {
-                            Box(
-                                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
-                                contentAlignment = Alignment.CenterEnd,
-                            ) {
-                                Icon(Icons.Outlined.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.onErrorContainer)
-                            }
-                        },
+    val trips = LocalTrips.current
+    var showTrips by rememberSaveable { mutableStateOf(false) }
+    var planning by remember { mutableStateOf<Post?>(null) }
+
+    ScreenScaffold(if (showTrips) t("My trip") else t("Favorites")) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                SegmentedButton(
+                    selected = !showTrips,
+                    onClick = { showTrips = false },
+                    shape = SegmentedButtonDefaults.itemShape(0, 2),
+                    icon = { SegmentedButtonDefaults.Icon(!showTrips) { Icon(Icons.Outlined.FavoriteBorder, null, Modifier.size(18.dp)) } },
+                ) { Text(t("Favorites")) }
+                SegmentedButton(
+                    selected = showTrips,
+                    onClick = { showTrips = true },
+                    shape = SegmentedButtonDefaults.itemShape(1, 2),
+                    icon = { SegmentedButtonDefaults.Icon(showTrips) { Icon(Icons.Outlined.Luggage, null, Modifier.size(18.dp)) } },
+                ) { Text(t("My trip")) }
+            }
+            when {
+                showTrips -> TripsList(open)
+                favorites.favorites.isEmpty() -> EmptyView(
+                    Icons.Outlined.FavoriteBorder,
+                    t("No favorites yet"),
+                    t("Tap the heart on an article to save it here. Saved articles can be read offline and added to your trip."),
+                )
+                else -> FavoritesList(favorites, trips, open, onPlan = { planning = it })
+            }
+        }
+    }
+
+    planning?.let { AddToTripSheet(it, onDismiss = { planning = null }) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FavoritesList(favorites: FavoritesStore, trips: TripStore, open: (Screen) -> Unit, onPlan: (Post) -> Unit) {
+    LazyColumn {
+        items(favorites.favorites, key = { it.post.id }) { favorite ->
+            val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = {
+                if (it == SwipeToDismissBoxValue.EndToStart) {
+                    favorites.remove(favorite.post.id)
+                    true
+                } else {
+                    false
+                }
+            })
+            val planned = trips.trips.any { trip -> trips.daysWith(trip.id, favorite.post.id).isNotEmpty() }
+            SwipeToDismissBox(
+                state = dismissState,
+                enableDismissFromStartToEnd = false,
+                backgroundContent = {
+                    Box(
+                        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
+                        contentAlignment = Alignment.CenterEnd,
                     ) {
-                        Box(Modifier.background(MaterialTheme.colorScheme.background)) {
-                            PostRow(favorite.post, onClick = { open(Screen.Article(favorite.post)) })
+                        Icon(Icons.Outlined.Delete, contentDescription = t("Remove"), tint = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                },
+            ) {
+                Box(Modifier.background(MaterialTheme.colorScheme.background)) {
+                    PostRow(favorite.post, onClick = { open(Screen.Article(favorite.post)) }) {
+                        IconButton(onClick = { onPlan(favorite.post) }) {
+                            Icon(
+                                if (planned) Icons.Filled.EventAvailable else Icons.Outlined.CalendarMonth,
+                                contentDescription = t("Add to your trip"),
+                                tint = if (planned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Switches the app between English and French. */
+@Composable
+fun LanguageButton() {
+    var menu by remember { mutableStateOf(false) }
+    Box(Modifier.padding(end = 8.dp)) {
+        FilledTonalButton(onClick = { menu = true }, contentPadding = PaddingValues(horizontal = 14.dp)) {
+            Icon(Icons.Outlined.Translate, contentDescription = null, Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(Lang.current.code.uppercase())
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            Language.entries.forEach { language ->
+                DropdownMenuItem(
+                    text = { Text(language.label) },
+                    trailingIcon = if (language == Lang.current) ({ Icon(Icons.Outlined.Check, contentDescription = null) }) else null,
+                    onClick = { menu = false; Lang.set(language) },
+                )
             }
         }
     }

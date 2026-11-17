@@ -13,7 +13,7 @@ struct ArticleView: View {
     var body: some View {
         Group {
             if let content {
-                ArticleWebView(html: Self.page(for: post, content: content)) { url in
+                ArticleWebView(html: Self.page(for: post, content: content, french: Lang.shared.isFrench)) { url in
                     openedLink = OpenedLink(url: url)
                 }
                 .ignoresSafeArea(edges: .bottom)
@@ -34,7 +34,7 @@ struct ArticleView: View {
                 } label: {
                     Image(systemName: favorites.isFavorite(post.id) ? "heart.fill" : "heart")
                 }
-                .accessibilityLabel(favorites.isFavorite(post.id) ? "Remove from favorites" : "Add to favorites")
+                .accessibilityLabel(favorites.isFavorite(post.id) ? t("Remove from favorites") : t("Add to favorites"))
                 .disabled(content == nil)
 
                 ShareLink(item: post.link, subject: Text(post.title))
@@ -60,12 +60,12 @@ struct ArticleView: View {
         }
     }
 
-    private static func page(for post: Post, content: String) -> String {
-        let date = post.date.formatted(.dateTime.day().month(.wide).year())
+    private static func page(for post: Post, content: String, french: Bool) -> String {
+        let date = post.date.formatted(.dateTime.day().month(.wide).year().locale(Lang.shared.locale))
         let hero = post.imageURL.map { "<img class=\"hero\" src=\"\($0.absoluteString.htmlEscaped)\" alt=\"\">" } ?? ""
         return """
         <!doctype html>
-        <html>
+        <html lang="en">
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -87,6 +87,7 @@ struct ArticleView: View {
         <h1 class="title">\(post.title.htmlEscaped)</h1>
         <div class="date">\(date)</div>
         \(content)
+        \(french ? WebTranslator.widget : "")
         </body>
         </html>
         """

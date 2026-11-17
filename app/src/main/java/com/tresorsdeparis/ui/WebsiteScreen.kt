@@ -1,5 +1,6 @@
 package com.tresorsdeparis.ui
 
+import com.tresorsdeparis.data.t
 import android.annotation.SuppressLint
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -106,8 +107,8 @@ fun WebsiteScreen(url: String, title: String, back: () -> Unit) {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(Modifier.padding(bottom = 16.dp))
-                        Text("Loading TdP ...")
-                        Text("Your Insider's Guide to Paris")
+                        Text(t("Loading TdP ..."))
+                        Text(t("Your insider's guide to Paris"))
                     }
                 }
             }
