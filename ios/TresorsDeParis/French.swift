@@ -138,4 +138,14 @@ let French: [String: String] = [
     "You have no trip yet. Create one to plan your days in Paris.": "Vous n'avez pas encore de voyage. Créez-en un pour planifier vos journées à Paris.",
     "Already added": "Déjà ajouté",
     "Tap another day to move it there.": "Touchez un autre jour pour l'y déplacer.",
+    // Notifications and updates
+    "New article": "Nouvel article",
+    "%d new articles": "%d nouveaux articles",
+    "New articles": "Nouveaux articles",
+    "A notification when a new article is posted": "Une notification à chaque nouvel article",
+    "Update available": "Mise à jour disponible",
+    "A new version of Trésors de Paris is available. Update now to get the latest improvements.": "Une nouvelle version de Trésors de Paris est disponible. Mettez à jour pour profiter des dernières améliorations.",
+    "Update": "Mettre à jour",
+    "Later": "Plus tard",
+    "Version %s of Trésors de Paris is available. Update now to get the latest improvements.": "La version %s de Trésors de Paris est disponible. Mettez à jour pour profiter des dernières améliorations.",
 ]

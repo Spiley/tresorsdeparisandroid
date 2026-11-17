@@ -71,4 +71,6 @@ dependencies {
     implementation(libs.androidx.browser)
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.play.app.update)
 }

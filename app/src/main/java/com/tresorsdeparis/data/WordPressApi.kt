@@ -87,7 +87,8 @@ object WordPressApi {
 
     data class Page(val posts: List<Post>, val totalPages: Int)
 
-    suspend fun posts(page: Int, source: PostSource): Page {
+    /** With [fresh] the result never comes from the offline cache. */
+    suspend fun posts(page: Int, source: PostSource, fresh: Boolean = false): Page {
         val params = mutableListOf(
             "per_page" to "20",
             "page" to page.toString(),
@@ -100,10 +101,16 @@ object WordPressApi {
             is PostSource.Tags -> params += "tags" to source.ids.joinToString(",")
             is PostSource.Search -> params += "search" to source.query
         }
-        val response = fetch(url("posts", params))
+        val response = fetch(url("posts", params), allowCache = !fresh)
         val array = JSONArray(response.body)
         val posts = (0 until array.length()).mapNotNull { parsePost(array.getJSONObject(it)) }
         return Page(posts, response.totalPages)
+    }
+
+    /** One article, like one opened from a notification. */
+    suspend fun post(postId: Int): Post? {
+        val params = listOf("_embed" to "wp:featuredmedia", "_fields" to "id,date,link,title,excerpt,_links,_embedded")
+        return parsePost(JSONObject(fetch(url("posts/$postId", params)).body))
     }
 
     suspend fun content(postId: Int): String {
@@ -177,7 +184,7 @@ object WordPressApi {
     private class Response(val body: String, val totalPages: Int)
 
     /** Loads from the network, falling back to the last saved response when offline. */
-    private suspend fun fetch(url: String): Response = withContext(Dispatchers.IO) {
+    private suspend fun fetch(url: String, allowCache: Boolean = true): Response = withContext(Dispatchers.IO) {
         val cacheFile = File(cacheDir, sha1(url))
         try {
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -194,7 +201,7 @@ object WordPressApi {
                 connection.disconnect()
             }
         } catch (e: IOException) {
-            if (!cacheFile.exists()) throw e
+            if (!allowCache || !cacheFile.exists()) throw e
             val cached = cacheFile.readText()
             val newline = cached.indexOf('\n')
             Response(cached.substring(newline + 1), cached.substring(0, newline).toIntOrNull() ?: 1)

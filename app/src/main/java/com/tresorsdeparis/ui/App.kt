@@ -1,5 +1,6 @@
 package com.tresorsdeparis.ui
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -138,7 +139,7 @@ class AppState(private val scope: CoroutineScope) {
 }
 
 @Composable
-fun TresorsApp(startTab: Int = 0) {
+fun TresorsApp(startTab: Int = 0, openPostId: Int? = null, onPostOpened: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val app = remember { AppState(scope) }
     var tab by rememberSaveable { mutableStateOf(Tab.entries.getOrElse(startTab) { Tab.Home }) }
@@ -154,6 +155,21 @@ fun TresorsApp(startTab: Int = 0) {
     fun back() {
         savedState.removeState(stateKey(stack.size))
         stack.removeAt(stack.lastIndex)
+    }
+
+    // An article from a tapped notification opens on Home
+    LaunchedEffect(openPostId) {
+        val id = openPostId ?: return@LaunchedEffect
+        try {
+            WordPressApi.post(id)?.let { post ->
+                tab = Tab.Home
+                app.stacks.getValue(Tab.Home).add(Screen.Article(post))
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            tab = Tab.Home
+        }
+        onPostOpened()
     }
 
     BackHandler(enabled = stack.isNotEmpty()) { back() }

@@ -1,5 +1,6 @@
 package com.tresorsdeparis.ui
 
+import com.tresorsdeparis.data.NewPostNotifier
 import com.tresorsdeparis.data.t
 import com.tresorsdeparis.data.Lang
 import com.tresorsdeparis.data.Language
@@ -85,8 +86,12 @@ import com.tresorsdeparis.data.WordPressApi
 
 @Composable
 fun HomeScreen(app: AppState, open: (Screen) -> Unit) {
+    val latest = app.posts(PostSource.Latest)
+    val context = LocalContext.current
+    // Articles seen here are not announced again by a notification
+    LaunchedEffect(latest.posts.firstOrNull()) { NewPostNotifier.markSeen(context, latest.posts) }
     PostList(
-        app.posts(PostSource.Latest),
+        latest,
         onOpen = { open(Screen.Article(it)) },
         modifier = Modifier.statusBarsPadding(),
         featured = true,

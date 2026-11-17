@@ -36,6 +36,10 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Post.self) { ArticleView(post: $0) }
         }
+        // Articles seen here are not announced by a notification later
+        .onChange(of: model.posts.first?.id, initial: true) {
+            NewPostNotifier.markSeen(model.posts)
+        }
     }
 }
 

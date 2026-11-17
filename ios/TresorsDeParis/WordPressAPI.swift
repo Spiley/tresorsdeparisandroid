@@ -50,7 +50,8 @@ enum WordPressAPI {
         let totalPages: Int
     }
 
-    static func posts(page: Int, categoryID: Int? = nil, tagIDs: [Int]? = nil, search: String? = nil) async throws -> Page {
+    /// `fresh` skips the cache, for the background check for new articles.
+    static func posts(page: Int, categoryID: Int? = nil, tagIDs: [Int]? = nil, search: String? = nil, fresh: Bool = false) async throws -> Page {
         var items = [
             URLQueryItem(name: "per_page", value: "20"),
             URLQueryItem(name: "page", value: String(page)),
@@ -67,10 +68,23 @@ enum WordPressAPI {
             items.append(URLQueryItem(name: "search", value: search))
         }
 
-        let (data, response) = try await fetch(url(path: "posts", items: items))
+        let (data, response) = try await fetch(url(path: "posts", items: items), fresh: fresh)
         let posts = try JSONDecoder().decode([PostDTO].self, from: data).compactMap(\.post)
         let totalPages = Int(response.value(forHTTPHeaderField: "X-WP-TotalPages") ?? "") ?? 1
         return Page(posts: posts, totalPages: totalPages)
+    }
+
+    /// One article, e.g. the one a notification is about.
+    static func post(id: Int) async throws -> Post {
+        let items = [
+            URLQueryItem(name: "_embed", value: "wp:featuredmedia"),
+            URLQueryItem(name: "_fields", value: "id,date,link,title,excerpt,_links,_embedded"),
+        ]
+        let (data, _) = try await fetch(url(path: "posts/\(id)", items: items))
+        guard let post = try JSONDecoder().decode(PostDTO.self, from: data).post else {
+            throw URLError(.cannotParseResponse)
+        }
+        return post
     }
 
     static func content(postID: Int) async throws -> String {
@@ -189,10 +203,12 @@ enum WordPressAPI {
     ]
 
     /// Loads from the network, falling back to the last cached response when offline.
-    private static func fetch(_ url: URL) async throws -> (Data, HTTPURLResponse) {
+    private static func fetch(_ url: URL, fresh: Bool = false) async throws -> (Data, HTTPURLResponse) {
         do {
-            return try await load(URLRequest(url: url))
-        } catch let error as URLError where offlineErrors.contains(error.code) {
+            var request = URLRequest(url: url)
+            if fresh { request.cachePolicy = .reloadIgnoringLocalCacheData }
+            return try await load(request)
+        } catch let error as URLError where !fresh && offlineErrors.contains(error.code) {
             var request = URLRequest(url: url)
             request.cachePolicy = .returnCacheDataDontLoad
             guard let cached = try? await load(request) else { throw error }

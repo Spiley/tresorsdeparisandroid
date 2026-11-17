@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct TresorsDeParisApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @State private var favorites = FavoritesStore()
     @State private var trips = TripStore()
 
@@ -24,6 +26,20 @@ struct TresorsDeParisApp: App {
             ContentView()
                 .environment(favorites)
                 .environment(trips)
+                .task {
+                    await NewPostNotifier.askOnce()
+                    #if DEBUG
+                    let since = UserDefaults.standard.double(forKey: "checkPostsSince")
+                    if since > 0 { await NewPostNotifier.check(since: since) }
+                    #endif
+                }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { NewPostNotifier.schedule() }
+        }
+        .backgroundTask(.appRefresh(NewPostNotifier.taskID)) {
+            NewPostNotifier.schedule()
+            await NewPostNotifier.check()
         }
     }
 }
