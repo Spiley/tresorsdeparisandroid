@@ -72,11 +72,19 @@ struct MenuView: View {
 
     private func load() async {
         failed = false
+        // The menu from last time shows at once
+        if items.isEmpty {
+            if let saved = try? await WordPressAPI.categories(saved: true) { categories = saved }
+            if let saved = try? await WordPressAPI.menu(saved: true) { items = saved }
+        }
         do {
-            categories = try await WordPressAPI.categories()
-            items = try await WordPressAPI.menu()
+            // Both at the same time
+            async let newCategories = WordPressAPI.categories()
+            async let newItems = WordPressAPI.menu()
+            categories = try await newCategories
+            items = try await newItems
         } catch {
-            failed = true
+            failed = items.isEmpty
         }
     }
 }

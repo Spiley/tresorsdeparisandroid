@@ -44,11 +44,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.tresorsdeparis.data.Post
 import com.tresorsdeparis.data.PostSource
 import com.tresorsdeparis.data.WordPressApi
@@ -88,12 +92,21 @@ class PostListState(private val source: PostSource, private val scope: Coroutine
     private fun load(next: Int) {
         isLoading = true
         job = scope.launch {
+            // The list from last time shows at once; the newest one replaces it when it arrives
+            if (next == 1 && posts.isEmpty()) {
+                runCatching { WordPressApi.posts(1, source, saved = true) }.getOrNull()?.let {
+                    posts = it.posts
+                    totalPages = it.totalPages
+                }
+            }
             try {
                 val result = WordPressApi.posts(next, source)
                 posts = if (next == 1) result.posts else (posts + result.posts).distinctBy { it.id }
                 page = next
                 totalPages = result.totalPages
                 failed = false
+                // The newest articles are loaded ahead, so opening one is instant
+                if (next == 1 && source == PostSource.Latest) WordPressApi.preload(result.posts.take(8))
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 failed = true
@@ -121,6 +134,15 @@ fun PostList(
 ) {
     LaunchedEffect(state) {
         if (state.posts.isEmpty() && !state.isLoading) state.refresh()
+    }
+    // The photos of the whole list are fetched ahead, so they are there when scrolling down
+    val context = LocalContext.current
+    LaunchedEffect(state.posts) {
+        state.posts.mapNotNull { it.imageUrl }.forEach { url ->
+            context.imageLoader.enqueue(
+                ImageRequest.Builder(context).data(url).memoryCachePolicy(CachePolicy.DISABLED).build(),
+            )
+        }
     }
 
     Column(modifier.fillMaxSize()) {
@@ -272,14 +294,16 @@ fun StoryCard(post: Post, onClick: () -> Unit) {
 
 @Composable
 fun PostImage(url: String?, modifier: Modifier = Modifier) {
-    SubcomposeAsyncImage(
-        model = url,
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier,
-        loading = { ImagePlaceholder() },
-        error = { ImagePlaceholder() },
-    )
+    // The placeholder stays underneath, so a missing photo leaves it visible
+    Box(modifier) {
+        ImagePlaceholder()
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(150).build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
 
 @Composable

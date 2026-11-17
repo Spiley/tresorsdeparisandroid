@@ -61,6 +61,8 @@ import com.tresorsdeparis.data.TripStore
 import com.tresorsdeparis.data.WordPressApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 val LocalFavorites = staticCompositionLocalOf<FavoritesStore> { error("FavoritesStore not provided") }
@@ -107,12 +109,22 @@ class AppState(private val scope: CoroutineScope) {
     fun loadMenu() {
         menuFailed = false
         scope.launch {
+            // The menu from last time shows at once
+            if (menu.isEmpty()) {
+                runCatching { WordPressApi.categories(saved = true) }.getOrNull()?.let { categories = it }
+                runCatching { WordPressApi.menu(saved = true) }.getOrNull()?.let { menu = it }
+            }
             try {
-                categories = WordPressApi.categories()
-                menu = WordPressApi.menu()
+                // Both at the same time
+                coroutineScope {
+                    val newCategories = async { WordPressApi.categories() }
+                    val newMenu = async { WordPressApi.menu() }
+                    categories = newCategories.await()
+                    menu = newMenu.await()
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                menuFailed = true
+                menuFailed = menu.isEmpty()
             }
         }
     }

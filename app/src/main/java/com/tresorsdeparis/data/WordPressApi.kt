@@ -87,8 +87,11 @@ object WordPressApi {
 
     data class Page(val posts: List<Post>, val totalPages: Int)
 
-    /** With [fresh] the result never comes from the offline cache. */
-    suspend fun posts(page: Int, source: PostSource, fresh: Boolean = false): Page {
+    /**
+     * With [fresh] the result never comes from the saved copy; with [saved] it only does,
+     * so a screen can show it at once while the network is still loading.
+     */
+    suspend fun posts(page: Int, source: PostSource, fresh: Boolean = false, saved: Boolean = false): Page {
         val params = mutableListOf(
             "per_page" to "20",
             "page" to page.toString(),
@@ -101,7 +104,7 @@ object WordPressApi {
             is PostSource.Tags -> params += "tags" to source.ids.joinToString(",")
             is PostSource.Search -> params += "search" to source.query
         }
-        val response = fetch(url("posts", params), allowCache = !fresh)
+        val response = if (saved) saved(url("posts", params)) else fetch(url("posts", params), allowCache = !fresh)
         val array = JSONArray(response.body)
         val posts = (0 until array.length()).mapNotNull { parsePost(array.getJSONObject(it)) }
         return Page(posts, response.totalPages)
@@ -113,14 +116,15 @@ object WordPressApi {
         return parsePost(JSONObject(fetch(url("posts/$postId", params)).body))
     }
 
-    suspend fun content(postId: Int): String {
-        val response = fetch(url("posts/$postId", listOf("_fields" to "content")))
+    suspend fun content(postId: Int, saved: Boolean = false): String {
+        val url = url("posts/$postId", listOf("_fields" to "content"))
+        val response = if (saved) saved(url) else fetch(url)
         return JSONObject(response.body).getJSONObject("content").getString("rendered")
     }
 
-    suspend fun categories(): List<PostCategory> {
-        val params = listOf("per_page" to "100", "_fields" to "id,name,slug,count")
-        val array = JSONArray(fetch(url("categories", params)).body)
+    suspend fun categories(saved: Boolean = false): List<PostCategory> {
+        val url = url("categories", listOf("per_page" to "100", "_fields" to "id,name,slug,count"))
+        val array = JSONArray((if (saved) saved(url) else fetch(url)).body)
         return (0 until array.length()).map {
             val json = array.getJSONObject(it)
             PostCategory(
@@ -152,7 +156,16 @@ object WordPressApi {
     }
 
     /** The website's hamburger menu, read from its home page so it follows the website. */
-    suspend fun menu(): List<MenuItem> = parseMenu(fetch(SITE).body)
+    suspend fun menu(saved: Boolean = false): List<MenuItem> = parseMenu((if (saved) saved(SITE) else fetch(SITE)).body)
+
+    /** Loads articles into the saved copies ahead of time, so they open at once. */
+    suspend fun preload(posts: List<Post>) {
+        for (post in posts) {
+            val url = url("posts/${post.id}", listOf("_fields" to "content"))
+            if (File(cacheDir, sha1(url)).exists()) continue
+            runCatching { fetch(url) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+        }
+    }
 
     private class MenuNode(val title: String, val url: String) {
         val children = mutableListOf<MenuNode>()
@@ -191,21 +204,33 @@ object WordPressApi {
                 connectTimeout = 15_000
                 readTimeout = 20_000
             }
-            try {
-                if (connection.responseCode !in 200..299) throw IOException("HTTP ${connection.responseCode}")
-                val body = connection.inputStream.bufferedReader().use { it.readText() }
-                val totalPages = connection.getHeaderField("X-WP-TotalPages")?.toIntOrNull() ?: 1
-                cacheFile.writeText("$totalPages\n$body")
-                Response(body, totalPages)
-            } finally {
-                connection.disconnect()
+            // Not disconnected: the connection stays open for the next request, which saves
+            // setting up a new secure connection every time
+            if (connection.responseCode !in 200..299) {
+                connection.errorStream?.close()
+                throw IOException("HTTP ${connection.responseCode}")
             }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val totalPages = connection.getHeaderField("X-WP-TotalPages")?.toIntOrNull() ?: 1
+            cacheFile.writeText("$totalPages\n$body")
+            Response(body, totalPages)
         } catch (e: IOException) {
             if (!allowCache || !cacheFile.exists()) throw e
-            val cached = cacheFile.readText()
-            val newline = cached.indexOf('\n')
-            Response(cached.substring(newline + 1), cached.substring(0, newline).toIntOrNull() ?: 1)
+            read(cacheFile)
         }
+    }
+
+    /** The saved copy of [url] from the last time it loaded; throws when there is none. */
+    private suspend fun saved(url: String): Response = withContext(Dispatchers.IO) {
+        val cacheFile = File(cacheDir, sha1(url))
+        if (!cacheFile.exists()) throw IOException("Not saved")
+        read(cacheFile)
+    }
+
+    private fun read(cacheFile: File): Response {
+        val cached = cacheFile.readText()
+        val newline = cached.indexOf('\n')
+        return Response(cached.substring(newline + 1), cached.substring(0, newline).toIntOrNull() ?: 1)
     }
 
     private fun sha1(text: String): String =

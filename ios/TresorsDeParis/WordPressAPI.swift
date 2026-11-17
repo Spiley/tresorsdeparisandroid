@@ -50,8 +50,9 @@ enum WordPressAPI {
         let totalPages: Int
     }
 
-    /// `fresh` skips the cache, for the background check for new articles.
-    static func posts(page: Int, categoryID: Int? = nil, tagIDs: [Int]? = nil, search: String? = nil, fresh: Bool = false) async throws -> Page {
+    /// `fresh` skips the saved copy, for the background check for new articles; `saved` only
+    /// uses it, so a screen can show it at once while the network is still loading.
+    static func posts(page: Int, categoryID: Int? = nil, tagIDs: [Int]? = nil, search: String? = nil, fresh: Bool = false, saved: Bool = false) async throws -> Page {
         var items = [
             URLQueryItem(name: "per_page", value: "20"),
             URLQueryItem(name: "page", value: String(page)),
@@ -68,7 +69,7 @@ enum WordPressAPI {
             items.append(URLQueryItem(name: "search", value: search))
         }
 
-        let (data, response) = try await fetch(url(path: "posts", items: items), fresh: fresh)
+        let (data, response) = try await fetch(url(path: "posts", items: items), fresh: fresh, saved: saved)
         let posts = try JSONDecoder().decode([PostDTO].self, from: data).compactMap(\.post)
         let totalPages = Int(response.value(forHTTPHeaderField: "X-WP-TotalPages") ?? "") ?? 1
         return Page(posts: posts, totalPages: totalPages)
@@ -87,22 +88,35 @@ enum WordPressAPI {
         return post
     }
 
-    static func content(postID: Int) async throws -> String {
+    private static func contentURL(postID: Int) -> URL {
+        url(path: "posts/\(postID)", items: [URLQueryItem(name: "_fields", value: "content")])
+    }
+
+    static func content(postID: Int, saved: Bool = false) async throws -> String {
         struct ContentDTO: Decodable {
             struct Rendered: Decodable { let rendered: String }
             let content: Rendered
         }
-        let items = [URLQueryItem(name: "_fields", value: "content")]
-        let (data, _) = try await fetch(url(path: "posts/\(postID)", items: items))
+        let (data, _) = try await fetch(contentURL(postID: postID), saved: saved)
         return try JSONDecoder().decode(ContentDTO.self, from: data).content.rendered
     }
 
-    static func categories() async throws -> [PostCategory] {
+    /// Loads articles into the saved copies ahead of time, so they open at once.
+    static func preload(_ posts: [Post]) async {
+        for post in posts {
+            let request = URLRequest(url: contentURL(postID: post.id))
+            if URLCache.shared.cachedResponse(for: request) != nil { continue }
+            if Task.isCancelled { return }
+            _ = try? await load(request)
+        }
+    }
+
+    static func categories(saved: Bool = false) async throws -> [PostCategory] {
         let items = [
             URLQueryItem(name: "per_page", value: "100"),
             URLQueryItem(name: "_fields", value: "id,name,slug,count"),
         ]
-        let (data, _) = try await fetch(url(path: "categories", items: items))
+        let (data, _) = try await fetch(url(path: "categories", items: items), saved: saved)
         return try JSONDecoder().decode([PostCategory].self, from: data)
     }
 
@@ -143,8 +157,8 @@ enum WordPressAPI {
     }
 
     /// The website's hamburger menu, read from its home page so it follows the website.
-    static func menu() async throws -> [MenuItem] {
-        let (data, _) = try await fetch(site)
+    static func menu(saved: Bool = false) async throws -> [MenuItem] {
+        let (data, _) = try await fetch(site, saved: saved)
         guard let html = String(data: data, encoding: .utf8), let items = parseMenu(html) else {
             throw URLError(.cannotParseResponse)
         }
@@ -203,7 +217,12 @@ enum WordPressAPI {
     ]
 
     /// Loads from the network, falling back to the last cached response when offline.
-    private static func fetch(_ url: URL, fresh: Bool = false) async throws -> (Data, HTTPURLResponse) {
+    private static func fetch(_ url: URL, fresh: Bool = false, saved: Bool = false) async throws -> (Data, HTTPURLResponse) {
+        if saved {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .returnCacheDataDontLoad
+            return try await load(request)
+        }
         do {
             var request = URLRequest(url: url)
             if fresh { request.cachePolicy = .reloadIgnoringLocalCacheData }

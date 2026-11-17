@@ -52,6 +52,10 @@ struct ArticleView: View {
         if let saved = favorites.content(for: post.id) {
             content = saved
         }
+        // The copy from last time shows at once while the newest one loads
+        if content == nil, let saved = try? await WordPressAPI.content(postID: post.id, saved: true) {
+            content = saved
+        }
         failed = false
         do {
             content = try await WordPressAPI.content(postID: post.id)

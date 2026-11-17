@@ -43,25 +43,45 @@ final class PostListModel {
         await load(page: page + 1)
     }
 
+    private func fetch(page: Int, saved: Bool = false) async throws -> WordPressAPI.Page {
+        switch source {
+        case .latest:
+            return try await WordPressAPI.posts(page: page, saved: saved)
+        case .category(let id):
+            return try await WordPressAPI.posts(page: page, categoryID: id, saved: saved)
+        case .tags(let ids):
+            return try await WordPressAPI.posts(page: page, tagIDs: ids, saved: saved)
+        case .search(let query):
+            return try await WordPressAPI.posts(page: page, search: query, saved: saved)
+        }
+    }
+
     private func load(page next: Int) async {
         isLoading = true
         defer { isLoading = false }
+        // The list from last time shows at once; the newest one replaces it when it arrives
+        if next == 1, posts.isEmpty, let saved = try? await fetch(page: 1, saved: true) {
+            posts = saved.posts
+            totalPages = saved.totalPages
+        }
         do {
-            let result: WordPressAPI.Page
-            switch source {
-            case .latest:
-                result = try await WordPressAPI.posts(page: next)
-            case .category(let id):
-                result = try await WordPressAPI.posts(page: next, categoryID: id)
-            case .tags(let ids):
-                result = try await WordPressAPI.posts(page: next, tagIDs: ids)
-            case .search(let query):
-                result = try await WordPressAPI.posts(page: next, search: query)
-            }
+            let result = try await fetch(page: next)
             posts = next == 1 ? result.posts : posts + result.posts.filter { new in !posts.contains { $0.id == new.id } }
             page = next
             totalPages = result.totalPages
             failed = false
+            // The photos are fetched ahead, so they are there when scrolling down
+            let images = result.posts.compactMap(\.imageURL)
+            Task.detached(priority: .utility) {
+                for url in images where URLCache.shared.cachedResponse(for: URLRequest(url: url)) == nil {
+                    _ = try? await URLSession.shared.data(from: url)
+                }
+            }
+            // The newest articles are loaded ahead, so opening one is instant
+            if next == 1, source == .latest {
+                let first = Array(result.posts.prefix(8))
+                Task.detached(priority: .utility) { await WordPressAPI.preload(first) }
+            }
         } catch {
             failed = true
         }

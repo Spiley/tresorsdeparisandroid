@@ -53,6 +53,8 @@ fun ArticleScreen(post: Post, back: () -> Unit) {
 
     LaunchedEffect(post.id, attempt) {
         failed = false
+        // The copy from last time shows at once while the newest one loads
+        if (content == null) content = runCatching { WordPressApi.content(post.id, saved = true) }.getOrNull()
         try {
             val fresh = WordPressApi.content(post.id)
             content = fresh
