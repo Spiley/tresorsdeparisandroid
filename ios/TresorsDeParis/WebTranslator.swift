@@ -1,7 +1,7 @@
 import SwiftUI
 import WebKit
 
-/// Translates texts from the website into French with the website's own translator: the
+/// Translates texts from the website into the chosen language with the website's own translator: the
 /// Google website translator that GTranslate puts on tresors-de-paris.com. It runs in a
 /// hidden web page, so no separate translation service or key is needed. Results are kept
 /// on the device, so every text is translated only once.
@@ -13,23 +13,23 @@ final class WebTranslator {
     private static let batchSize = 60
     private static let maxPolls = 40
 
-    /// The translator script, for pages that should show up in French. The cookie tells
+    /// The translator script, for pages that should show up in `language`. The cookie tells
     /// the translator which language to show, as GTranslate does on the website.
-    nonisolated static let widget = """
+    nonisolated static func widget(_ language: Language) -> String { """
     <div id="gt-element" style="display:none"></div>
     <style>
       iframe.skiptranslate, .goog-te-banner-frame, #goog-gt-tt, .goog-te-balloon-frame { display: none !important; }
       body { top: 0 !important; position: static !important; }
       font { background: none !important; box-shadow: none !important; }
     </style>
-    <script>document.cookie = 'googtrans=/en/fr; path=/';</script>
-    <script>function gtInit(){ new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'fr', autoDisplay: false}, 'gt-element'); }</script>
+    <script>document.cookie = 'googtrans=/en/\(language.rawValue); path=/';</script>
+    <script>function gtInit(){ new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: '\(language.rawValue)', autoDisplay: false}, 'gt-element'); }</script>
     <script src="https://translate.google.com/translate_a/element.js?cb=gtInit"></script>
-    """
+    """ }
 
     /// Sets the website's language cookie before its own scripts run, for the full website.
     static var languageScript: WKUserScript {
-        let value = Lang.shared.isFrench ? "/en/fr" : "/en/en"
+        let value = "/en/\(Lang.shared.current.rawValue)"
         return WKUserScript(
             source: "document.cookie = 'googtrans=\(value); path=/';",
             injectionTime: .atDocumentStart,
@@ -37,30 +37,35 @@ final class WebTranslator {
         )
     }
 
-    /// English text to French; observed, so views update when a translation arrives.
-    private var french: [String: String] = [:]
+    /// English text to the translation, per language; observed, so views update when a translation arrives.
+    private var translations: [Language: [String: String]] = [:]
     @ObservationIgnored private var queue: [String] = []
     @ObservationIgnored private var queued: Set<String> = []
     @ObservationIgnored private var failed: Set<String> = []
     @ObservationIgnored private var busy = false
     @ObservationIgnored private var batchNumber = 0
     @ObservationIgnored private var webView: WKWebView?
-    @ObservationIgnored private let fileURL = URL.documentsDirectory.appending(path: "translations-fr.json")
+    private static func fileURL(_ language: Language) -> URL {
+        URL.documentsDirectory.appending(path: "translations-\(language.rawValue).json")
+    }
 
     private init() {
-        if let data = try? Data(contentsOf: fileURL),
-           let saved = try? JSONDecoder().decode([String: String].self, from: data) {
-            french = saved
+        for language in Language.allCases where language != .english {
+            if let data = try? Data(contentsOf: Self.fileURL(language)),
+               let saved = try? JSONDecoder().decode([String: String].self, from: data) {
+                translations[language] = saved
+            }
         }
     }
 
-    /// `english` in the chosen language. In French it returns the English text until the
-    /// translation is ready; a view showing it updates when it is.
+    /// `english` in the chosen language. It returns the English text until the translation
+    /// is ready; a view showing it updates when it is.
     func text(_ english: String) -> String {
-        guard Lang.shared.isFrench, !english.isEmpty else { return english }
+        let language = Lang.shared.current
+        guard language != .english, !english.isEmpty else { return english }
         // The app's own wording first, so the website's "Home" reads "Accueil" like the tab
-        if let own = French[english] { return own }
-        if let translated = french[english] { return translated }
+        if let own = language.texts[english] { return own }
+        if let translated = translations[language]?[english] { return translated }
         if !failed.contains(english), queued.insert(english).inserted {
             queue.append(english)
             if !busy {
@@ -80,21 +85,26 @@ final class WebTranslator {
     }
 
     private func translateQueue() async {
-        while !queue.isEmpty, Lang.shared.isFrench {
+        while !queue.isEmpty, Lang.shared.current != .english {
+            let language = Lang.shared.current
             let batch = Array(queue.prefix(Self.batchSize))
-            let results = await translate(batch)
-            french.merge(results) { $1 }
+            let results = await translate(batch, to: language)
+            translations[language, default: [:]].merge(results) { $1 }
             queue.removeFirst(batch.count)
             for text in batch {
                 queued.remove(text)
-                if results[text] == nil { failed.insert(text) }
+                // Texts asked for in another language meanwhile are asked again
+                if results[text] == nil, Lang.shared.current == language { failed.insert(text) }
             }
-            save()
+            save(language)
         }
+        // Texts left over after switching to English are asked again when needed
+        queue.removeAll()
+        queued.removeAll()
         busy = false
     }
 
-    private func translate(_ texts: [String]) async -> [String: String] {
+    private func translate(_ texts: [String], to language: Language) async -> [String: String] {
         let view = webView ?? makeWebView()
         batchNumber += 1
         let batch = batchNumber
@@ -102,7 +112,7 @@ final class WebTranslator {
         for text in texts {
             page += "<p class=\"t\">\(text.htmlEscaped)</p>"
         }
-        page += Self.widget + "</body></html>"
+        page += Self.widget(language) + "</body></html>"
         view.loadHTMLString(page, baseURL: WordPressAPI.site)
 
         // Google wraps every translated piece in <font>, so a paragraph with one is done
@@ -144,9 +154,9 @@ final class WebTranslator {
         return view
     }
 
-    private func save() {
-        guard let data = try? JSONEncoder().encode(french) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+    private func save(_ language: Language) {
+        guard let data = try? JSONEncoder().encode(translations[language] ?? [:]) else { return }
+        try? data.write(to: Self.fileURL(language), options: .atomic)
     }
 }
 

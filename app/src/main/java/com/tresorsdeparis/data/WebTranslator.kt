@@ -15,7 +15,7 @@ import org.json.JSONTokener
 import java.io.File
 
 /**
- * Translates texts from the website into French with the website's own translator: the
+ * Translates texts from the website into the chosen language with the website's own translator: the
  * Google website translator that GTranslate puts on tresors-de-paris.com. It runs in a
  * hidden web page, so no separate translation service or key is needed. Results are kept
  * on the device, so every text is translated only once.
@@ -25,48 +25,52 @@ object WebTranslator {
     private const val BatchSize = 60
     private const val MaxPolls = 40
 
-    /** The translator script, for pages that should show up in French. */
-    val widget = """
+    /** The translator script, for pages that should show up in [language]. */
+    fun widget(language: Language) = """
         <div id="gt-element" style="display:none"></div>
         <style>
           iframe.skiptranslate, .goog-te-banner-frame, #goog-gt-tt, .goog-te-balloon-frame { display: none !important; }
           body { top: 0 !important; position: static !important; }
           font { background: none !important; box-shadow: none !important; }
         </style>
-        <script>function gtInit(){ new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'fr', autoDisplay: false}, 'gt-element'); }</script>
+        <script>function gtInit(){ new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: '${language.code}', autoDisplay: false}, 'gt-element'); }</script>
         <script src="https://translate.google.com/translate_a/element.js?cb=gtInit"></script>
     """.trimIndent()
 
     private lateinit var context: Context
-    private lateinit var file: File
     private val handler = Handler(Looper.getMainLooper())
 
-    /** English text to French; a state map, so screens update when a translation arrives. */
-    private val french = mutableStateMapOf<String, String>()
+    /** English text to the translation, per language; state maps, so screens update when a translation arrives. */
+    private val translations = Language.entries.filter { it != Language.English }
+        .associateWith { mutableStateMapOf<String, String>() }
     private val queue = LinkedHashSet<String>()
     private val failed = HashSet<String>()
     private var webView: WebView? = null
     private var busy = false
 
+    private fun file(language: Language) = File(context.filesDir, "translations-${language.code}.json")
+
     fun init(context: Context) {
         this.context = context.applicationContext
-        file = File(context.filesDir, "translations-fr.json")
-        runCatching {
-            val json = JSONObject(file.readText())
-            json.keys().forEach { french[it] = json.getString(it) }
+        translations.forEach { (language, map) ->
+            runCatching {
+                val json = JSONObject(file(language).readText())
+                json.keys().forEach { map[it] = json.getString(it) }
+            }
         }
         setLanguageCookie()
     }
 
     /**
-     * [english] in the chosen language. In French it returns the English text until the
-     * translation is ready; reading it in a composable shows the French text when it is.
+     * [english] in the chosen language. It returns the English text until the translation
+     * is ready; reading it in a composable shows the translation when it is.
      */
     fun text(english: String): String {
-        if (!Lang.isFrench || english.isBlank()) return english
+        val map = translations[Lang.current] ?: return english
+        if (english.isBlank()) return english
         // The app's own wording first, so the website's "Home" reads "Accueil" like the tab
-        French[english]?.let { return it }
-        french[english]?.let { return it }
+        Lang.current.texts[english]?.let { return it }
+        map[english]?.let { return it }
         if (english !in failed && queue.add(english) && !busy) {
             handler.removeCallbacks(next)
             handler.postDelayed(next, 150)
@@ -76,7 +80,7 @@ object WebTranslator {
 
     /** Tells the website which language to show, for article pages and the website itself. */
     fun setLanguageCookie() {
-        val value = if (Lang.isFrench) "/en/fr" else "/en/en"
+        val value = "/en/${Lang.current.code}"
         val cookies = CookieManager.getInstance()
         cookies.setCookie(WordPressApi.SITE, "googtrans=$value; path=/")
         cookies.setCookie(WordPressApi.SITE, "googtrans=$value; path=/; domain=.tresors-de-paris.com")
@@ -86,28 +90,32 @@ object WebTranslator {
     /** Called after switching languages: tries texts again that failed before. */
     fun languageChanged() {
         failed.clear()
+        queue.clear()
         setLanguageCookie()
     }
 
     private val next = Runnable { translateNext() }
 
     private fun translateNext() {
-        if (busy || queue.isEmpty() || !Lang.isFrench) return
+        val language = Lang.current
+        val map = translations[language]
+        if (busy || queue.isEmpty() || map == null) return
         busy = true
         val batch = queue.take(BatchSize)
-        translate(batch) { results ->
-            french.putAll(results)
+        translate(batch, language) { results ->
+            map.putAll(results)
             batch.forEach { text ->
                 queue.remove(text)
-                if (text !in results) failed += text
+                // Texts asked for in another language meanwhile are asked again
+                if (text !in results && Lang.current == language) failed += text
             }
-            save()
+            save(language)
             busy = false
             if (queue.isNotEmpty()) handler.post(next)
         }
     }
 
-    private fun translate(texts: List<String>, done: (Map<String, String>) -> Unit) {
+    private fun translate(texts: List<String>, language: Language, done: (Map<String, String>) -> Unit) {
         val view = webView ?: WebView(context).also {
             it.settings.javaScriptEnabled = true
             webView = it
@@ -115,7 +123,7 @@ object WebTranslator {
         val page = buildString {
             append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"></head><body>")
             texts.forEach { append("<p class=\"t\">").append(it.htmlEscaped()).append("</p>") }
-            append(widget)
+            append(widget(language))
             append("</body></html>")
         }
         var finished = false
@@ -154,10 +162,10 @@ object WebTranslator {
         view.loadDataWithBaseURL(WordPressApi.SITE, page, "text/html", "utf-8", null)
     }
 
-    private fun save() {
+    private fun save(language: Language) {
         val json = JSONObject()
-        french.forEach { (english, translation) -> json.put(english, translation) }
-        runCatching { file.writeText(json.toString()) }
+        translations[language]?.forEach { (english, translation) -> json.put(english, translation) }
+        runCatching { file(language).writeText(json.toString()) }
     }
 }
 

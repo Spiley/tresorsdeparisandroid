@@ -225,6 +225,10 @@ struct TripView: View {
             }
             .navigationTitle(trip.name)
             .toolbar {
+                ShareLink(item: trip.shareText(), subject: Text(trip.name)) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel(t("Share trip"))
                 Menu {
                     Button(t("Rename trip"), systemImage: "pencil") {
                         newName = trip.name
@@ -372,6 +376,7 @@ private struct SectionPicker: View {
 /// One day of a trip, or its practical info, with buttons to switch between them. Tapping
 /// an activity opens it; the arrows button shows arrows to change the order.
 struct TripDayView: View {
+    @Environment(\.switchTab) private var switchTab
     let tripID: UUID
     @Binding var path: NavigationPath
     @Environment(TripStore.self) private var trips
@@ -471,10 +476,17 @@ struct TripDayView: View {
 
                 if !reordering {
                     Section {
+                        // Inspiration first: the menu leads to more articles to read and save
+                        Button {
+                            switchTab(2)
+                        } label: {
+                            Label(t("Get inspired"), systemImage: "safari")
+                                .fontWeight(.semibold)
+                        }
                         Button {
                             pickingFavorite = true
                         } label: {
-                            Label(t("Favorite"), systemImage: "heart")
+                            Label(t("Favorites"), systemImage: "heart")
                         }
                         Button {
                             newName = ""

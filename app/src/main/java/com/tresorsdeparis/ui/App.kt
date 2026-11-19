@@ -45,6 +45,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -150,6 +151,9 @@ class AppState(private val scope: CoroutineScope) {
     }
 }
 
+/** Switches to another tab, e.g. from the trip planner to the menu for inspiration. */
+val LocalSwitchTab = staticCompositionLocalOf<(Tab) -> Unit> { {} }
+
 @Composable
 fun TresorsApp(startTab: Int = 0, openPostId: Int? = null, onPostOpened: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
@@ -212,6 +216,7 @@ fun TresorsApp(startTab: Int = 0, openPostId: Int? = null, onPostOpened: () -> U
         },
     ) { padding ->
         Box(Modifier.padding(bottom = padding.calculateBottomPadding()).consumeWindowInsets(padding)) {
+            CompositionLocalProvider(LocalSwitchTab provides { tab = it }) {
             savedState.SaveableStateProvider(stateKey(stack.size)) {
                 when (val screen = stack.lastOrNull()) {
                     null -> when (tab) {
@@ -230,6 +235,7 @@ fun TresorsApp(startTab: Int = 0, openPostId: Int? = null, onPostOpened: () -> U
                     is Screen.TripDay -> TripDayScreen(screen.tripId, screen.day, ::back, ::open)
                     is Screen.Activity -> ActivityScreen(screen.tripId, screen.activityId, ::back, ::open)
                 }
+            }
             }
         }
     }

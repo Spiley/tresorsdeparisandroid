@@ -36,6 +36,34 @@ struct Trip: Codable, Identifiable, Hashable {
 
     var activityCount: Int { days.reduce(0) { $0 + $1.activities.count } }
 
+    /// The whole trip as text to send to someone: every day with its activities, and links
+    /// to the articles on the website, so the people it is shared with read them there.
+    @MainActor
+    func shareText() -> String {
+        var lines = [name]
+        func add(_ title: String, _ day: TripDay) {
+            guard !day.activities.isEmpty || !day.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            lines.append("")
+            lines.append(title)
+            let notes = day.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !notes.isEmpty { lines.append(notes) }
+            for activity in day.activities {
+                lines.append("• " + [activity.time, translated(activity.title)].filter { !$0.isEmpty }.joined(separator: " "))
+                if let post = activity.post { lines.append("  " + post.link.absoluteString) }
+                let location = activity.location.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !location.isEmpty { lines.append("  📍 " + location) }
+                let notes = activity.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !notes.isEmpty { lines.append("  " + notes.replacingOccurrences(of: "\n", with: "\n  ")) }
+            }
+        }
+        add(t("Practical info"), info)
+        for (index, day) in days.enumerated() { add(t("Day %d", index + 1), day) }
+        lines.append("")
+        lines.append(t("Planned with the Trésors de Paris app"))
+        lines.append(WordPressAPI.site.absoluteString)
+        return lines.joined(separator: "\n")
+    }
+
     /// The practical info followed by all days.
     var sectionIndices: [Int] { [infoSection] + Array(days.indices) }
 

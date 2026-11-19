@@ -90,6 +90,31 @@ data class Trip(
         section(index)?.activities?.firstOrNull { it.id == activityId }?.let { index to it }
     }
 
+    /**
+     * The whole trip as text to send to someone: every day with its activities, and links
+     * to the articles on the website, so the people it is shared with read them there.
+     */
+    fun shareText(): String = buildString {
+        appendLine(name)
+        fun section(title: String, day: TripDay) {
+            if (day.activities.isEmpty() && day.notes.isBlank()) return
+            appendLine()
+            appendLine(title)
+            if (day.notes.isNotBlank()) appendLine(day.notes.trim())
+            day.activities.forEach { activity ->
+                appendLine("• " + listOf(activity.time, translated(activity.title)).filter { it.isNotBlank() }.joinToString(" "))
+                activity.post?.let { appendLine("  " + it.link) }
+                if (activity.location.isNotBlank()) appendLine("  📍 " + activity.location.trim())
+                if (activity.notes.isNotBlank()) appendLine("  " + activity.notes.trim().replace("\n", "\n  "))
+            }
+        }
+        section(t("Practical info"), info)
+        days.forEachIndexed { index, day -> section(t("Day %d", index + 1), day) }
+        appendLine()
+        appendLine(t("Planned with the Trésors de Paris app"))
+        append(WordPressApi.SITE)
+    }
+
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
         .put("name", name)

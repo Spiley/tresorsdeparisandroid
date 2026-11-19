@@ -1,5 +1,10 @@
 import SwiftUI
 
+extension EnvironmentValues {
+    /// Switches to another tab, e.g. from the trip planner to the menu for inspiration.
+    @Entry var switchTab: (Int) -> Void = { _ in }
+}
+
 struct ContentView: View {
     // `-startTab N` as a launch argument opens another tab (used for simulator screenshots)
     @State private var selectedTab = UserDefaults.standard.integer(forKey: "startTab")
@@ -27,6 +32,7 @@ struct ContentView: View {
                 .tabItem { Label(t("Favorites"), systemImage: "heart") }
                 .tag(4)
         }
+        .environment(\.switchTab) { selectedTab = $0 }
         .sheet(item: $notifiedPost) { post in
             NavigationStack {
                 ArticleView(post: post)

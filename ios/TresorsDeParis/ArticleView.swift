@@ -13,7 +13,7 @@ struct ArticleView: View {
     var body: some View {
         Group {
             if let content {
-                ArticleWebView(html: Self.page(for: post, content: content, french: Lang.shared.isFrench)) { url in
+                ArticleWebView(html: Self.page(for: post, content: content, language: Lang.shared.current)) { url in
                     openedLink = OpenedLink(url: url)
                 }
                 .ignoresSafeArea(edges: .bottom)
@@ -64,7 +64,7 @@ struct ArticleView: View {
         }
     }
 
-    private static func page(for post: Post, content: String, french: Bool) -> String {
+    private static func page(for post: Post, content: String, language: Language) -> String {
         let date = post.date.formatted(.dateTime.day().month(.wide).year().locale(Lang.shared.locale))
         let hero = post.imageURL.map { "<img class=\"hero\" src=\"\($0.absoluteString.htmlEscaped)\" alt=\"\">" } ?? ""
         return """
@@ -91,7 +91,7 @@ struct ArticleView: View {
         <h1 class="title">\(post.title.htmlEscaped)</h1>
         <div class="date">\(date)</div>
         \(content)
-        \(french ? WebTranslator.widget : "")
+        \(language != .english ? WebTranslator.widget(language) : "")
         </body>
         </html>
         """

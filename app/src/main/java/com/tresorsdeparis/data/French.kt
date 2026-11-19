@@ -164,6 +164,10 @@ val French: Map<String, String> = mapOf(
         "Vous n'avez pas encore de voyage. Créez-en un pour planifier vos journées à Paris.",
     "Already added" to "Déjà ajouté",
     "Tap another day to move it there." to "Touchez un autre jour pour l'y déplacer.",
+    "Get inspired" to "Inspirez-vous",
+    "Share trip" to "Partager le voyage",
+    "Planned with the Trésors de Paris app" to "Planifié avec l'app Trésors de Paris",
+    "No articles about %s yet." to "Pas encore d'articles sur %s.",
 
     // Notifications and updates
     "New article" to "Nouvel article",

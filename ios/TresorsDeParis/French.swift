@@ -1,6 +1,7 @@
 /// The app's own texts in French, by their English text. Texts from the website are not
-/// here: those are translated by `WebTranslator`. Kept the same as French.kt on Android.
+/// here: those are translated by `WebTranslator`. Generated from French.kt on Android; keep them the same.
 let French: [String: String] = [
+    // Tabs and navigation
     "Home": "Accueil",
     "Show": "Afficher",
     "Language": "Langue",
@@ -16,6 +17,8 @@ let French: [String: String] = [
     "Website": "Site web",
     "Open the website": "Ouvrir le site web",
     "All %s": "Tout : %s",
+
+    // Articles
     "Your insider's guide to Paris": "Votre guide d'initié à Paris",
     "LATEST STORY": "DERNIER ARTICLE",
     "Loading TdP ...": "Chargement de TdP ...",
@@ -28,10 +31,14 @@ let French: [String: String] = [
     "Remove from favorites": "Retirer des favoris",
     "%d article": "%d article",
     "%d articles": "%d articles",
+
+    // Search
     "Search Trésors de Paris": "Rechercher sur Trésors de Paris",
     "Search articles": "Rechercher des articles",
     "Find restaurants, hidden gems, events and more in Paris.": "Trouvez des restaurants, des trésors cachés, des événements et plus encore à Paris.",
     "No results for “%s”": "Aucun résultat pour « %s »",
+
+    // Map
     "Tap a department or arrondissement": "Touchez un département ou un arrondissement",
     "All departments and arrondissements": "Tous les départements et arrondissements",
     "See all articles": "Voir tous les articles",
@@ -45,6 +52,8 @@ let French: [String: String] = [
     "Montparnasse Cemetery": "Cimetière du Montparnasse",
     "Montmartre Cemetery": "Cimetière de Montmartre",
     "Père Lachaise": "Père-Lachaise",
+
+    // Favorites and trips
     "My trip": "Mon voyage",
     "No favorites yet": "Pas encore de favoris",
     "Tap the heart on an article to save it here. Saved articles can be read offline and added to your trip.": "Touchez le cœur d'un article pour l'enregistrer ici. Les articles enregistrés se lisent hors ligne et s'ajoutent à votre voyage.",
@@ -138,6 +147,11 @@ let French: [String: String] = [
     "You have no trip yet. Create one to plan your days in Paris.": "Vous n'avez pas encore de voyage. Créez-en un pour planifier vos journées à Paris.",
     "Already added": "Déjà ajouté",
     "Tap another day to move it there.": "Touchez un autre jour pour l'y déplacer.",
+    "Get inspired": "Inspirez-vous",
+    "Share trip": "Partager le voyage",
+    "Planned with the Trésors de Paris app": "Planifié avec l'app Trésors de Paris",
+    "No articles about %s yet.": "Pas encore d'articles sur %s.",
+
     // Notifications and updates
     "New article": "Nouvel article",
     "%d new articles": "%d nouveaux articles",

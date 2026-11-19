@@ -4,6 +4,8 @@ import Observation
 enum Language: String, CaseIterable, Identifiable {
     case english = "en"
     case french = "fr"
+    case dutch = "nl"
+    case german = "de"
 
     var id: String { rawValue }
 
@@ -11,11 +13,23 @@ enum Language: String, CaseIterable, Identifiable {
         switch self {
         case .english: "English"
         case .french: "Français"
+        case .dutch: "Nederlands"
+        case .german: "Deutsch"
+        }
+    }
+
+    /// The app's own texts in this language, by their English text.
+    var texts: [String: String] {
+        switch self {
+        case .english: [:]
+        case .french: French
+        case .dutch: Dutch
+        case .german: German
         }
     }
 }
 
-/// The language of the app. The app's own texts come from `French`; articles, titles and
+/// The language of the app. The app's own texts come from `French`, `Dutch` and `German`; articles, titles and
 /// menus from the website are translated by the website's own translator (`WebTranslator`).
 @Observable
 final class Lang {
@@ -29,15 +43,17 @@ final class Lang {
     }
 
     var isFrench: Bool { current == .french }
+    var isEnglish: Bool { current == .english }
 
     var locale: Locale { Locale(identifier: current.rawValue) }
 
-    /// Uses the saved choice, or French on a phone set to French.
+    /// Uses the saved choice, or the phone's language when the app has it.
     private init() {
         if let saved = UserDefaults.standard.string(forKey: "language").flatMap(Language.init(rawValue:)) {
             current = saved
         } else {
-            current = Locale.preferredLanguages.first?.hasPrefix("fr") == true ? .french : .english
+            let phone = Locale.preferredLanguages.first.map { String($0.prefix(2)) } ?? "en"
+            current = Language(rawValue: phone) ?? .english
         }
     }
 }
@@ -46,7 +62,7 @@ final class Lang {
 /// `%s` and `%d` in it are filled with `args` (the same keys as on Android). Reading it in a
 /// view updates the view when the language changes.
 func t(_ english: String, _ args: CVarArg...) -> String {
-    let text = Lang.shared.isFrench ? (French[english] ?? english) : english
+    let text = Lang.shared.current.texts[english] ?? english
     guard !args.isEmpty else { return text }
     let format = text.replacingOccurrences(of: "%s", with: "%@").replacingOccurrences(of: "%d", with: "%ld")
     return String(format: format, locale: Lang.shared.locale, arguments: args)

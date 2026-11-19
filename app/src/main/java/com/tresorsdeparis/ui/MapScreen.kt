@@ -2,6 +2,7 @@ package com.tresorsdeparis.ui
 
 import com.tresorsdeparis.data.translated
 import com.tresorsdeparis.data.Lang
+import com.tresorsdeparis.data.Language
 import com.tresorsdeparis.data.t
 import com.tresorsdeparis.data.plural
 import androidx.compose.animation.AnimatedVisibility
@@ -623,14 +624,25 @@ private fun DrawScope.drawLabel(
 
 /** "8th arrondissement", or "8e arrondissement" in French. */
 fun areaTitle(area: MapArea): String {
-    if (!Lang.isFrench || area.isDepartment) return area.title
+    if (area.isDepartment) return area.title
     val number = area.badge
-    return if (number == "1") "1er arrondissement" else "${number}e arrondissement"
+    return when (Lang.current) {
+        Language.English -> area.title
+        Language.French -> if (number == "1") "1er arrondissement" else "${number}e arrondissement"
+        Language.Dutch -> "${number}e arrondissement"
+        Language.German -> "$number. Arrondissement"
+    }
 }
 
 /** "Department 77" or the arrondissement's name, like "Louvre". */
-fun areaName(area: MapArea): String =
-    if (Lang.isFrench && area.isDepartment) area.name.replace("Department", "Département") else area.name
+fun areaName(area: MapArea): String {
+    if (!area.isDepartment) return area.name
+    return when (Lang.current) {
+        Language.English -> area.name
+        Language.French, Language.German -> area.name.replace("Department", "Département")
+        Language.Dutch -> area.name.replace("Department", "Departement")
+    }
+}
 
 fun noArticlesAbout(area: MapArea): String =
-    if (Lang.isFrench) "Pas encore d'articles sur ${areaTitle(area)}." else "No articles about ${area.short} yet."
+    if (Lang.isEnglish) "No articles about ${area.short} yet." else t("No articles about %s yet.", areaTitle(area))

@@ -36,6 +36,8 @@ import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Directions
 import androidx.compose.material.icons.outlined.Edit
@@ -231,11 +233,21 @@ fun TripScreen(tripId: String, back: () -> Unit, open: (Screen) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     ScreenScaffold(
         trip.name,
         onBack = back,
         actions = {
+            IconButton(onClick = {
+                val intent = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, trip.name)
+                    .putExtra(Intent.EXTRA_TEXT, trip.shareText())
+                context.startActivity(Intent.createChooser(intent, t("Share trip")))
+            }) {
+                Icon(Icons.Outlined.Share, contentDescription = t("Share trip"))
+            }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = t("More")) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -452,6 +464,7 @@ private fun DayCard(index: Int, day: TripDay, onClick: () -> Unit) {
  */
 @Composable
 fun TripDayScreen(tripId: String, startDay: Int, back: () -> Unit, open: (Screen) -> Unit) {
+    val switchTab = LocalSwitchTab.current
     val trips = LocalTrips.current
     val context = LocalContext.current
     val trip = trips.trip(tripId) ?: run {
@@ -574,6 +587,15 @@ fun TripDayScreen(tripId: String, startDay: Int, back: () -> Unit, open: (Screen
             }
             if (!reordering) {
                 item {
+                    // Inspiration first: the menu leads to more articles to read and save
+                    Button(
+                        onClick = { switchTab(Tab.Menu) },
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                    ) {
+                        Icon(Icons.Outlined.Explore, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(t("Get inspired"), maxLines = 1)
+                    }
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -581,7 +603,7 @@ fun TripDayScreen(tripId: String, startDay: Int, back: () -> Unit, open: (Screen
                         FilledTonalButton(onClick = { pickingFavorite = true }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text(t("Favorite"), maxLines = 1)
+                            Text(t("Favorites"), maxLines = 1)
                         }
                         FilledTonalButton(onClick = { creating = true }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.Add, contentDescription = null, Modifier.size(18.dp))

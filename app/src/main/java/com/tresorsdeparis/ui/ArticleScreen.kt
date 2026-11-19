@@ -2,6 +2,7 @@ package com.tresorsdeparis.ui
 
 import com.tresorsdeparis.data.WebTranslator
 import com.tresorsdeparis.data.Lang
+import com.tresorsdeparis.data.Language
 import com.tresorsdeparis.data.t
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
@@ -84,7 +85,7 @@ fun ArticleScreen(post: Post, back: () -> Unit) {
         Box(Modifier.padding(padding).fillMaxSize()) {
             val html = content
             when {
-                html != null -> ArticleWebView(articlePage(post, html, isSystemInDarkTheme(), Lang.isFrench))
+                html != null -> ArticleWebView(articlePage(post, html, isSystemInDarkTheme(), Lang.current))
                 failed -> OfflineView(onRetry = { attempt++ })
                 else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
@@ -141,7 +142,7 @@ private fun share(context: Context, post: Post) {
     context.startActivity(Intent.createChooser(intent, null))
 }
 
-private fun articlePage(post: Post, content: String, dark: Boolean, french: Boolean): String {
+private fun articlePage(post: Post, content: String, dark: Boolean, language: Language): String {
     val (background, text) = if (dark) "#121212" to "#E8E8E8" else "#FFFFFF" to "#1A1A1A"
     val link = if (dark) "#D4A94A" else "#B8892B"
     val hero = post.imageUrl?.let { "<img class=\"hero\" src=\"${it.htmlEscaped()}\" alt=\"\">" }.orEmpty()
@@ -169,7 +170,7 @@ private fun articlePage(post: Post, content: String, dark: Boolean, french: Bool
         <h1 class="title">${post.title.htmlEscaped()}</h1>
         <div class="date">${formatDate(post.date)}</div>
         $content
-        ${if (french) WebTranslator.widget else ""}
+        ${if (language != Language.English) WebTranslator.widget(language) else ""}
         </body>
         </html>
     """.trimIndent()

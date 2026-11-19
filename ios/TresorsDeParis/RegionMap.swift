@@ -762,16 +762,26 @@ private struct AreaPostsView: View {
 extension MapArea {
     /// "8th arrondissement", or "8e arrondissement" in French.
     var shownTitle: String {
-        guard Lang.shared.isFrench, !isDepartment else { return title }
-        return badge == "1" ? "1er arrondissement" : "\(badge)e arrondissement"
+        guard !isDepartment else { return title }
+        switch Lang.shared.current {
+        case .english: return title
+        case .french: return badge == "1" ? "1er arrondissement" : "\(badge)e arrondissement"
+        case .dutch: return "\(badge)e arrondissement"
+        case .german: return "\(badge). Arrondissement"
+        }
     }
 
     /// "Department 77" or the arrondissement's name, like "Louvre".
     var shownName: String {
-        Lang.shared.isFrench && isDepartment ? name.replacingOccurrences(of: "Department", with: "Département") : name
+        guard isDepartment else { return name }
+        switch Lang.shared.current {
+        case .english: return name
+        case .french, .german: return name.replacingOccurrences(of: "Department", with: "Département")
+        case .dutch: return name.replacingOccurrences(of: "Department", with: "Departement")
+        }
     }
 
     var noArticlesMessage: String {
-        Lang.shared.isFrench ? "Pas encore d'articles sur \(shownTitle)." : "No articles about \(short) yet."
+        Lang.shared.isEnglish ? "No articles about \(short) yet." : t("No articles about %s yet.", shownTitle)
     }
 }
